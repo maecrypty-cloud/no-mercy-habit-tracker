@@ -37,7 +37,6 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
-  // Reset midnight & unlock both Death Days next week separately
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -129,16 +128,23 @@ export default function App() {
     }
   }, [tasks, today]);
 
-  const filteredTasks = tasks.filter((t) => t.date === today);
+  // **FILTER FIX**
+  const filteredTasks = tasks.filter((t) => {
+    const normalizedTaskDate = new Date(t.date).toISOString().split("T")[0];
+    return normalizedTaskDate === today;
+  });
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const name = e.target.name.value;
-    const date = e.target.date.value;
+    const rawDate = e.target.date.value;
+    const normalizedDate = new Date(rawDate).toISOString().split("T")[0]; // Fix
     const time = e.target.time.value;
     const duration = e.target.duration.value;
-    if (!name || !date || !time) return alert("Please fill all fields!");
-    addTask({ name, date, time, duration, done: false });
+    if (!name || !rawDate || !time) return alert("Please fill all fields!");
+    const taskObj = { name, date: normalizedDate, time, duration, done: false };
+    console.log("Task added:", taskObj, "Today:", today); // Debug
+    addTask(taskObj);
     e.target.reset();
   };
 
@@ -276,4 +282,4 @@ export default function App() {
       {page === "deathmode" && deathMode}
     </div>
   );
-    }
+}
