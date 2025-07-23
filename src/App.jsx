@@ -9,16 +9,17 @@ export default function App() {
   const [level, setLevel] = useState(1);
   const [forgiveLeft, setForgiveLeft] = useState(6);
   const [xpFrozen, setXpFrozen] = useState(false);
+  const [deathMode, setDeathMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
 
-  // XP required per level
   const xpRequired = 500 * level;
 
-  // Level up check
+  // Level Up Check
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
       setXp(0);
-      setForgiveLeft((prev) => Math.max(1, prev - 1)); // Forgive reduce
+      setForgiveLeft((prev) => Math.max(1, prev - 1));
     }
   }, [xp]);
 
@@ -30,14 +31,14 @@ export default function App() {
     newTasks[index].done = true;
     setTasks(newTasks);
 
-    // WakeUp special check
     if (newTasks[index].isWakeUp) {
       const now = new Date();
       const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
       const diffMinutes = (now - taskTime) / 60000;
       if (diffMinutes > 10) {
         setXpFrozen(true);
-        alert("WakeUp task late! XP frozen for today.");
+        setDeathMode(true);
+        alert("WakeUp late! Death Mode activated, XP frozen.");
         return;
       }
     }
@@ -70,57 +71,121 @@ export default function App() {
     form.reset();
   };
 
+  const themeStyles = darkMode
+    ? { background: "#121212", color: "#f5f5f5" }
+    : { background: "#f5f5f5", color: "#121212" };
+
   return (
-    <div style={{ padding: "20px", fontFamily: "cursive" }}>
-      <h1>No Mercy Habit Tracker</h1>
-      <p>
-        Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgive
-        left: {forgiveLeft}
-      </p>
-
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-        <input type="text" name="name" placeholder="Task name" required />
-        <input type="date" name="date" required />
-        <input type="time" name="time" required />
-        <input type="number" name="duration" min="5" defaultValue={30} />
-        <label>
-          <input type="checkbox" name="isWakeUp" /> WakeUp Task
-        </label>
-        <button type="submit">Add Task</button>
-      </form>
-
-      <div style={{ marginTop: "20px" }}>
-        <label>
-          Select Day:
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-          />
-        </label>
+    <div style={{ ...styles.container, ...themeStyles, ...(deathMode ? styles.deathMode : {}) }}>
+      <div style={styles.header}>
+        <h1>No Mercy Habit Tracker</h1>
+        <button onClick={() => setDarkMode(!darkMode)} style={styles.themeBtn}>
+          {darkMode ? "Light Mode" : "Dark Mode"}
+        </button>
       </div>
 
-      <h2>Tasks for {selectedDate}</h2>
-      <ul>
+      {/* XP & Level */}
+      <div style={styles.levelBox}>
+        <p>
+          Level: {level} | XP: {xp}/{xpRequired}{" "}
+          {xpFrozen && <span style={{ color: "red" }}>(Frozen)</span>}
+        </p>
+        <p>Forgive left: {forgiveLeft}</p>
+        <div style={styles.progressBar}>
+          <div style={{ ...styles.progressFill, width: `${(xp / xpRequired) * 100}%` }}></div>
+        </div>
+      </div>
+
+      {/* Task Form */}
+      <form onSubmit={handleSubmit} style={styles.form}>
+        <input style={styles.input} type="text" name="name" placeholder="Task name" required />
+        <input style={styles.input} type="date" name="date" required />
+        <input style={styles.input} type="time" name="time" required />
+        <input style={styles.input} type="number" name="duration" min="5" defaultValue={30} />
+        <label style={styles.checkbox}>
+          <input type="checkbox" name="isWakeUp" /> WakeUp Task
+        </label>
+        <button type="submit" style={styles.button}>Add Task</button>
+      </form>
+
+      {/* Date Picker */}
+      <div style={styles.datePicker}>
+        <label>Select Day:</label>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          style={styles.input}
+        />
+      </div>
+
+      {/* Tasks List */}
+      <h2 style={styles.subheading}>Tasks for {selectedDate}</h2>
+      <div style={styles.taskList}>
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task, idx) => (
-            <li key={idx}>
-              {task.name} - {task.time} ({task.duration} min)
-              {task.isWakeUp && " 🌞"}
+            <div key={idx} style={{ ...styles.taskCard, animation: "fadeIn 0.5s ease" }}>
+              <div>
+                <b>{task.name}</b> - {task.time} ({task.duration} min)
+                {task.isWakeUp && " 🌞"}
+              </div>
               {!task.done ? (
-                <>
-                  <button onClick={() => completeTask(idx)}>Done</button>
-                  <button onClick={() => forgiveTask(idx)}>Forgive</button>
-                </>
+                <div style={styles.taskButtons}>
+                  <button onClick={() => completeTask(idx)} style={styles.doneBtn}>Done</button>
+                  <button onClick={() => forgiveTask(idx)} style={styles.forgiveBtn}>Forgive</button>
+                </div>
               ) : (
-                <span> ✔</span>
+                <span style={{ color: "green" }}>✔ Completed</span>
               )}
-            </li>
+            </div>
           ))
         ) : (
-          <p>No tasks for this date</p>
+          <p style={{ color: "#666" }}>No tasks for this date</p>
         )}
-      </ul>
+      </div>
+
+      {/* CSS Keyframes for Fade-in */}
+      <style>
+        {`
+          @keyframes fadeIn {
+            from {opacity: 0; transform: translateY(10px);}
+            to {opacity: 1; transform: translateY(0);}
+          }
+        `}
+      </style>
     </div>
   );
-        }
+}
+
+const styles = {
+  container: { maxWidth: "500px", margin: "auto", padding: "20px", minHeight: "100vh" },
+  deathMode: { background: "#300", color: "#fff" },
+  header: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  themeBtn: { padding: "5px 10px", borderRadius: "5px", border: "none", cursor: "pointer" },
+  levelBox: { marginBottom: "20px", textAlign: "center" },
+  progressBar: {
+    width: "100%", height: "12px", background: "#eee", borderRadius: "6px",
+    overflow: "hidden", marginTop: "5px"
+  },
+  progressFill: { height: "100%", background: "linear-gradient(90deg, #4caf50, #81c784)" },
+  form: { display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" },
+  input: { padding: "8px", borderRadius: "5px", border: "1px solid #ccc" },
+  checkbox: { fontSize: "14px" },
+  button: { padding: "10px", background: "#007bff", color: "#fff", border: "none", borderRadius: "5px" },
+  datePicker: { display: "flex", flexDirection: "column", gap: "5px", marginBottom: "20px" },
+  subheading: { marginBottom: "10px" },
+  taskList: { display: "flex", flexDirection: "column", gap: "10px" },
+  taskCard: {
+    padding: "10px",
+    borderRadius: "5px",
+    border: "1px solid #ddd",
+    background: "#f9f9f9",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
+  },
+  taskButtons: { display: "flex", gap: "5px" },
+  doneBtn: { padding: "5px 10px", background: "#28a745", color: "#fff", border: "none", borderRadius: "3px" },
+  forgiveBtn: { padding: "5px 10px", background: "#ffc107", color: "#000", border: "none", borderRadius: "3px" },
+};
