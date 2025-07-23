@@ -1,15 +1,11 @@
 import React, { useState, useEffect } from "react";
 
-// ---------- Utility ----------
-const randomWallpapers = [
-  "https://wallpaperaccess.com/full/211255.jpg",
-  "https://wallpaperaccess.com/full/3835184.jpg",
-  "https://wallpaperaccess.com/full/211258.jpg",
-  "https://wallpaperaccess.com/full/4444313.jpg",
-];
+// ---------- Constants ----------
+const PAIN_BG = "https://wallpaperaccess.com/full/211255.jpg"; // Akatsuki Pain
 const getToday = () => new Date().toISOString().split("T")[0];
+const weekDays = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-// ---------- Main App ----------
+// ---------- Main ----------
 export default function App() {
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem("user")) || null);
   const [tasks, setTasks] = useState(() => JSON.parse(localStorage.getItem("tasks")) || []);
@@ -19,8 +15,8 @@ export default function App() {
   const [forgiveLeft, setForgiveLeft] = useState(() => parseInt(localStorage.getItem("forgive")) || 6);
   const [xpFrozen, setXpFrozen] = useState(false);
   const [view, setView] = useState("dashboard");
-  const [wallpaper, setWallpaper] = useState(randomWallpapers[0]);
-
+  const [deathDays, setDeathDays] = useState(() => JSON.parse(localStorage.getItem("deathDays")) || []);
+  
   // ---------- Effects ----------
   useEffect(() => {
     localStorage.setItem("tasks", JSON.stringify(tasks));
@@ -28,13 +24,9 @@ export default function App() {
     localStorage.setItem("xp", xp);
     localStorage.setItem("level", level);
     localStorage.setItem("forgive", forgiveLeft);
-  }, [tasks, user, xp, level, forgiveLeft]);
+    localStorage.setItem("deathDays", JSON.stringify(deathDays));
+  }, [tasks, user, xp, level, forgiveLeft, deathDays]);
 
-  useEffect(() => {
-    setWallpaper(randomWallpapers[Math.floor(Math.random() * randomWallpapers.length)]);
-  }, [view]);
-
-  // ---------- XP / Level ----------
   const xpRequired = 500 * level;
   useEffect(() => {
     if (xp >= xpRequired) {
@@ -56,12 +48,11 @@ export default function App() {
     setXp(0);
     setLevel(1);
     setForgiveLeft(6);
+    setDeathDays([]);
   };
 
   // ---------- Task Ops ----------
-  const addTask = (task) => {
-    setTasks([...tasks, { ...task, done: false }]);
-  };
+  const addTask = (task) => setTasks([...tasks, { ...task, done: false }]);
 
   const completeTask = (index) => {
     if (xpFrozen) return alert("XP is frozen today!");
@@ -77,8 +68,18 @@ export default function App() {
       const diffMinutes = (now - taskTime) / 1000 / 60;
       if (diffMinutes > 10) {
         setXpFrozen(true);
-        alert("Wake-Up task late! XP frozen for today.");
+        alert("Wake-Up late! XP frozen for today.");
         return;
+      }
+    }
+
+    // Death mode day check
+    const todayName = weekDays[new Date().getDay()];
+    if (deathDays.includes(todayName)) {
+      const allToday = tasks.filter(t => t.date === getToday());
+      if (!allToday.every(t => t.done)) {
+        setXpFrozen(true);
+        alert("Death mode failed → XP frozen!");
       }
     }
 
@@ -102,10 +103,24 @@ export default function App() {
   // ---------- Filter ----------
   const filteredTasks = tasks.filter((t) => t.date === selectedDate);
 
+  // ---------- Death Mode ----------
+  const toggleDeathDay = (day) => {
+    const maxDays = level >= 7 ? 2 : 1;
+    if (deathDays.includes(day)) {
+      setDeathDays(deathDays.filter((d) => d !== day));
+    } else {
+      if (deathDays.length >= maxDays) {
+        alert(`Max ${maxDays} day(s) allowed for Death Mode.`);
+        return;
+      }
+      setDeathDays([...deathDays, day]);
+    }
+  };
+
   // ---------- Render ----------
   if (!user) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center" style={{ background: `url(${wallpaper}) center/cover` }}>
+      <div className="h-screen flex flex-col items-center justify-center" style={{ background: `url(${PAIN_BG}) center/cover` }}>
         <h1 className="text-white text-4xl font-bold mb-4">No Mercy Tracker</h1>
         <input id="username" placeholder="Enter username" className="p-2 rounded text-black mb-4" />
         <button onClick={() => login(document.getElementById("username").value)} className="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded">
@@ -116,11 +131,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: `url(${wallpaper}) center/cover` }}>
+    <div className="min-h-screen" style={{ background: `url(${PAIN_BG}) center/cover` }}>
       {/* Navbar */}
-      <nav className="bg-black bg-opacity-60 p-4 fixed w-full z-50 top-0 flex justify-between text-white">
+      <nav className="bg-black bg-opacity-60 p-4 fixed w-full z-50 top-0 flex flex-wrap justify-between text-white">
         <h2 className="text-xl font-bold">Akatsuki Habit</h2>
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap">
           <button onClick={() => setView("dashboard")}>Dashboard</button>
           <button onClick={() => setView("reports")}>Reports</button>
           <button onClick={() => setView("profile")}>Profile</button>
@@ -133,6 +148,7 @@ export default function App() {
         <h1 className="text-3xl font-bold mb-2">Welcome, {user.name}</h1>
         <p className="mb-4">Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgive left: {forgiveLeft}</p>
 
+        {/* DASHBOARD */}
         {view === "dashboard" && (
           <div>
             <form
@@ -186,11 +202,30 @@ export default function App() {
           </div>
         )}
 
+        {/* REPORTS */}
         {view === "reports" && <p>Weekly and daily reports will come here (TODO).</p>}
+
+        {/* PROFILE */}
         {view === "profile" && <p>User Profile with stats (TODO).</p>}
+
+        {/* DEATH MODE */}
         {view === "deathmode" && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Death Mode Rules</h2>
+            <h2 className="text-2xl font-bold mb-2">Death Mode Day Selection</h2>
+            <p>Select {level >= 7 ? "TWO" : "ONE"} day(s) for Death Mode this week:</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-4">
+              {weekDays.map((day) => (
+                <button
+                  key={day}
+                  onClick={() => toggleDeathDay(day)}
+                  className={`p-2 rounded ${deathDays.includes(day) ? "bg-red-600" : "bg-gray-600"}`}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
+            <h3 className="mt-4 font-bold">Selected Days: {deathDays.join(", ") || "None"}</h3>
+            <h2 className="text-xl mt-4 font-bold">Rules:</h2>
             <ul className="list-disc pl-6">
               <li>No social media</li>
               <li>10 focused tasks</li>
@@ -202,4 +237,4 @@ export default function App() {
       </div>
     </div>
   );
-        }
+    }
