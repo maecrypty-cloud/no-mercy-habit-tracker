@@ -1,22 +1,48 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect } from "react";
 
-export default function WakeUpTask({ setWakeUpDone }) {
-  const [timer, setTimer] = useState(600)
+function WakeUpTask({ onComplete, freezeXP }) {
+  const [timeLeft, setTimeLeft] = useState(600); // 10 min = 600 sec
+  const [completed, setCompleted] = useState(false);
 
   useEffect(() => {
-    if (timer > 0) {
-      const t = setTimeout(() => setTimer(timer - 1), 1000)
-      return () => clearTimeout(t)
+    if (timeLeft > 0 && !completed) {
+      const timer = setInterval(() => {
+        setTimeLeft((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
     }
-  }, [timer])
+  }, [timeLeft, completed]);
+
+  const handleDone = () => {
+    if (timeLeft > 0) {
+      setCompleted(true);
+      onComplete(10); // XP +10
+    } else {
+      freezeXP(); // XP freeze if time expired
+    }
+  };
 
   return (
-    <div className="mb-4 p-3 bg-red-100 rounded">
+    <div className="p-4 rounded bg-red-100">
       <h2 className="text-xl font-bold">Wake Up Task</h2>
-      <p>Complete in: {Math.floor(timer/60)}:{timer%60}</p>
-      <button onClick={() => setWakeUpDone(true)} className="bg-red-500 text-white px-4 mt-2 rounded">
-        Done
-      </button>
+      {!completed ? (
+        <>
+          <p className="text-sm">
+            Complete in: {Math.floor(timeLeft / 60)}:
+            {String(timeLeft % 60).padStart(2, "0")}
+          </p>
+          <button
+            onClick={handleDone}
+            className="bg-red-500 text-white px-3 py-1 rounded mt-2"
+          >
+            Done
+          </button>
+        </>
+      ) : (
+        <p className="text-green-600 font-semibold">Completed!</p>
+      )}
     </div>
-  )
+  );
 }
+
+export default WakeUpTask;
