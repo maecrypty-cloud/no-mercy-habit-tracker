@@ -1,191 +1,236 @@
 import React, { useState, useEffect } from "react";
 
+// ---- Preloaded Akatsuki Characters ----
+const characters = [
+  { name: "Itachi Uchiha", img: "https://i.imgur.com/Ux6sNqV.png" },
+  { name: "Pain", img: "https://i.imgur.com/VGic2yF.png" },
+  { name: "Kisame Hoshigaki", img: "https://i.imgur.com/EoJd6mj.png" },
+  { name: "Deidara", img: "https://i.imgur.com/RPKiL3w.png" },
+  { name: "Sasori", img: "https://i.imgur.com/OrjU1Bt.png" },
+  { name: "Konan", img: "https://i.imgur.com/HbD5Msz.png" },
+  { name: "Hidan", img: "https://i.imgur.com/iycHJxk.png" },
+  { name: "Kakuzu", img: "https://i.imgur.com/M5Nncsj.png" },
+  { name: "Zetsu", img: "https://i.imgur.com/yrzL4hR.png" },
+  { name: "Obito Uchiha", img: "https://i.imgur.com/K7UEVYx.png" }
+];
+
 export default function App() {
-  const [tasks, setTasks] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-  const [xp, setXp] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [forgiveLeft, setForgiveLeft] = useState(6);
-  const [xpFrozen, setXpFrozen] = useState(false);
-  const [deathMode, setDeathMode] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
+  const [user, setUser] = useState(() => JSON.parse(localStorage.getItem("user")) || null);
+  const [tasks, setTasks] = useState(() => JSON.parse(localStorage.getItem("tasks")) || []);
+  const [xp, setXp] = useState(() => JSON.parse(localStorage.getItem("xp")) || 0);
+  const [level, setLevel] = useState(() => JSON.parse(localStorage.getItem("level")) || 1);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [character, setCharacter] = useState(() => JSON.parse(localStorage.getItem("character")) || characters[0]);
 
   const xpRequired = 500 * level;
 
-  // Level Up Check
+  // --- Persist Data ---
+  useEffect(() => {
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+    localStorage.setItem("xp", JSON.stringify(xp));
+    localStorage.setItem("level", JSON.stringify(level));
+    localStorage.setItem("character", JSON.stringify(character));
+    localStorage.setItem("user", JSON.stringify(user));
+  }, [tasks, xp, level, character, user]);
+
+  // --- Level Up ---
   useEffect(() => {
     if (xp >= xpRequired) {
-      setLevel((prev) => prev + 1);
+      setLevel(prev => prev + 1);
       setXp(0);
-      setForgiveLeft((prev) => Math.max(1, prev - 1));
+      const newChar = characters[Math.floor(Math.random() * characters.length)];
+      setCharacter(newChar);
+      alert(`Level Up! New Character: ${newChar.name}`);
     }
   }, [xp]);
 
-  const addTask = (task) => setTasks([...tasks, task]);
+  // --- Add Task ---
+  const addTask = (task) => {
+    setTasks([...tasks, task]);
+  };
 
+  // --- Complete Task ---
   const completeTask = (index) => {
-    if (xpFrozen) return;
     const newTasks = [...tasks];
+    if (newTasks[index].done) return;
     newTasks[index].done = true;
     setTasks(newTasks);
-
-    if (newTasks[index].isWakeUp) {
-      const now = new Date();
-      const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
-      const diffMinutes = (now - taskTime) / 60000;
-      if (diffMinutes > 10) {
-        setXpFrozen(true);
-        setDeathMode(true);
-        alert("WakeUp late! Death Mode activated, XP frozen.");
-        return;
-      }
-    }
-
-    setXp((prev) => prev + 10);
+    setXp(prev => prev + 10);
   };
 
-  const forgiveTask = (index) => {
-    if (forgiveLeft <= 0) return alert("No forgives left!");
-    const newTasks = [...tasks];
-    newTasks[index].done = true;
+  // --- Delete Task ---
+  const deleteTask = (index) => {
+    const newTasks = tasks.filter((_, i) => i !== index);
     setTasks(newTasks);
-    setForgiveLeft((prev) => prev - 1);
   };
 
-  const filteredTasks = tasks.filter((t) => t.date === selectedDate);
-
-  const handleSubmit = (e) => {
+  // --- Login ---
+  const handleLogin = (e) => {
     e.preventDefault();
-    const form = e.target;
-    const name = form.name.value;
-    const date = form.date.value;
-    const time = form.time.value;
-    const duration = form.duration.value;
-    const isWakeUp = form.isWakeUp.checked;
-
-    if (!name || !date || !time) return alert("Please fill required fields!");
-
-    addTask({ name, date, time, duration, isWakeUp, done: false });
-    form.reset();
+    const username = e.target.username.value.trim();
+    if (!username) return;
+    setUser({ name: username });
   };
 
-  const themeStyles = darkMode
-    ? { background: "#121212", color: "#f5f5f5" }
-    : { background: "#f5f5f5", color: "#121212" };
+  // --- Logout ---
+  const handleLogout = () => {
+    localStorage.clear();
+    setUser(null);
+    setTasks([]);
+    setXp(0);
+    setLevel(1);
+    setCharacter(characters[0]);
+  };
 
-  return (
-    <div style={{ ...styles.container, ...themeStyles, ...(deathMode ? styles.deathMode : {}) }}>
-      <div style={styles.header}>
-        <h1>No Mercy Habit Tracker</h1>
-        <button onClick={() => setDarkMode(!darkMode)} style={styles.themeBtn}>
-          {darkMode ? "Light Mode" : "Dark Mode"}
-        </button>
-      </div>
+  const filteredTasks = tasks.filter(t => t.date === selectedDate);
 
-      {/* XP & Level */}
-      <div style={styles.levelBox}>
-        <p>
-          Level: {level} | XP: {xp}/{xpRequired}{" "}
-          {xpFrozen && <span style={{ color: "red" }}>(Frozen)</span>}
-        </p>
-        <p>Forgive left: {forgiveLeft}</p>
-        <div style={styles.progressBar}>
-          <div style={{ ...styles.progressFill, width: `${(xp / xpRequired) * 100}%` }}></div>
+  // --- Render ---
+  if (!user) {
+    return (
+      <div style={styles.bg}>
+        <div style={styles.loginBox}>
+          <h1 style={{ color: "white" }}>Akatsuki Habit Tracker</h1>
+          <form onSubmit={handleLogin}>
+            <input name="username" placeholder="Enter username" style={styles.input} />
+            <button style={styles.button}>Login</button>
+          </form>
         </div>
       </div>
+    );
+  }
 
-      {/* Task Form */}
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <input style={styles.input} type="text" name="name" placeholder="Task name" required />
-        <input style={styles.input} type="date" name="date" required />
-        <input style={styles.input} type="time" name="time" required />
-        <input style={styles.input} type="number" name="duration" min="5" defaultValue={30} />
-        <label style={styles.checkbox}>
-          <input type="checkbox" name="isWakeUp" /> WakeUp Task
-        </label>
-        <button type="submit" style={styles.button}>Add Task</button>
-      </form>
+  return (
+    <div style={styles.bg}>
+      <div style={styles.container}>
+        <header style={styles.header}>
+          <div>
+            <h2 style={{ color: "white" }}>Welcome, {user.name}</h2>
+            <p style={{ color: "white" }}>Level {level} | XP {xp}/{xpRequired}</p>
+          </div>
+          <div>
+            <img src={character.img} alt={character.name} style={styles.avatar} />
+            <p style={{ color: "white", textAlign: "center" }}>{character.name}</p>
+            <button style={styles.logout} onClick={handleLogout}>Logout</button>
+          </div>
+        </header>
 
-      {/* Date Picker */}
-      <div style={styles.datePicker}>
-        <label>Select Day:</label>
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => setSelectedDate(e.target.value)}
-          style={styles.input}
-        />
+        <section style={styles.taskInput}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = e.target.name.value;
+              const date = e.target.date.value;
+              const time = e.target.time.value;
+              if (!name || !date || !time) return alert("Fill all fields!");
+              addTask({ name, date, time, done: false });
+              e.target.reset();
+            }}
+          >
+            <input name="name" placeholder="Task name" style={styles.input} />
+            <input name="date" type="date" style={styles.input} defaultValue={selectedDate} />
+            <input name="time" type="time" style={styles.input} />
+            <button style={styles.button}>Add Task</button>
+          </form>
+        </section>
+
+        <section>
+          <h3 style={{ color: "white" }}>Tasks for {selectedDate}</h3>
+          {filteredTasks.length > 0 ? (
+            <ul>
+              {filteredTasks.map((task, idx) => (
+                <li key={idx} style={styles.taskItem}>
+                  <span style={{ color: task.done ? "green" : "white" }}>
+                    {task.name} - {task.time}
+                  </span>
+                  {!task.done && <button onClick={() => completeTask(idx)} style={styles.smallBtn}>Done</button>}
+                  <button onClick={() => deleteTask(idx)} style={styles.smallBtn}>Delete</button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ color: "gray" }}>No tasks</p>
+          )}
+        </section>
+
+        <section style={{ marginTop: "20px" }}>
+          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} style={styles.input} />
+        </section>
       </div>
-
-      {/* Tasks List */}
-      <h2 style={styles.subheading}>Tasks for {selectedDate}</h2>
-      <div style={styles.taskList}>
-        {filteredTasks.length > 0 ? (
-          filteredTasks.map((task, idx) => (
-            <div key={idx} style={{ ...styles.taskCard, animation: "fadeIn 0.5s ease" }}>
-              <div>
-                <b>{task.name}</b> - {task.time} ({task.duration} min)
-                {task.isWakeUp && " 🌞"}
-              </div>
-              {!task.done ? (
-                <div style={styles.taskButtons}>
-                  <button onClick={() => completeTask(idx)} style={styles.doneBtn}>Done</button>
-                  <button onClick={() => forgiveTask(idx)} style={styles.forgiveBtn}>Forgive</button>
-                </div>
-              ) : (
-                <span style={{ color: "green" }}>✔ Completed</span>
-              )}
-            </div>
-          ))
-        ) : (
-          <p style={{ color: "#666" }}>No tasks for this date</p>
-        )}
-      </div>
-
-      {/* CSS Keyframes for Fade-in */}
-      <style>
-        {`
-          @keyframes fadeIn {
-            from {opacity: 0; transform: translateY(10px);}
-            to {opacity: 1; transform: translateY(0);}
-          }
-        `}
-      </style>
     </div>
   );
 }
 
+// --- Styles ---
 const styles = {
-  container: { maxWidth: "500px", margin: "auto", padding: "20px", minHeight: "100vh" },
-  deathMode: { background: "#300", color: "#fff" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  themeBtn: { padding: "5px 10px", borderRadius: "5px", border: "none", cursor: "pointer" },
-  levelBox: { marginBottom: "20px", textAlign: "center" },
-  progressBar: {
-    width: "100%", height: "12px", background: "#eee", borderRadius: "6px",
-    overflow: "hidden", marginTop: "5px"
+  bg: {
+    background: "url('https://i.imgur.com/q0bM9hh.png') no-repeat center center fixed",
+    backgroundSize: "cover",
+    minHeight: "100vh",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    fontFamily: "cursive",
   },
-  progressFill: { height: "100%", background: "linear-gradient(90deg, #4caf50, #81c784)" },
-  form: { display: "flex", flexDirection: "column", gap: "10px", marginBottom: "20px" },
-  input: { padding: "8px", borderRadius: "5px", border: "1px solid #ccc" },
-  checkbox: { fontSize: "14px" },
-  button: { padding: "10px", background: "#007bff", color: "#fff", border: "none", borderRadius: "5px" },
-  datePicker: { display: "flex", flexDirection: "column", gap: "5px", marginBottom: "20px" },
-  subheading: { marginBottom: "10px" },
-  taskList: { display: "flex", flexDirection: "column", gap: "10px" },
-  taskCard: {
-    padding: "10px",
-    borderRadius: "5px",
-    border: "1px solid #ddd",
-    background: "#f9f9f9",
+  container: {
+    width: "90%",
+    maxWidth: "500px",
+    background: "rgba(0,0,0,0.7)",
+    padding: "20px",
+    borderRadius: "10px"
+  },
+  loginBox: {
+    background: "rgba(0,0,0,0.8)",
+    padding: "30px",
+    borderRadius: "8px",
+    textAlign: "center"
+  },
+  header: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "center",
-    boxShadow: "0 2px 5px rgba(0,0,0,0.1)"
+    marginBottom: "20px"
   },
-  taskButtons: { display: "flex", gap: "5px" },
-  doneBtn: { padding: "5px 10px", background: "#28a745", color: "#fff", border: "none", borderRadius: "3px" },
-  forgiveBtn: { padding: "5px 10px", background: "#ffc107", color: "#000", border: "none", borderRadius: "3px" },
+  avatar: {
+    width: "70px",
+    height: "70px",
+    borderRadius: "50%",
+    border: "2px solid red"
+  },
+  logout: {
+    background: "red",
+    border: "none",
+    padding: "5px 10px",
+    marginTop: "5px",
+    cursor: "pointer"
+  },
+  taskInput: {
+    marginBottom: "20px"
+  },
+  input: {
+    padding: "8px",
+    margin: "5px",
+    width: "100%",
+    borderRadius: "5px",
+    border: "none"
+  },
+  button: {
+    background: "red",
+    color: "white",
+    padding: "8px",
+    border: "none",
+    borderRadius: "5px",
+    cursor: "pointer"
+  },
+  smallBtn: {
+    marginLeft: "5px",
+    background: "red",
+    color: "white",
+    border: "none",
+    padding: "3px 8px",
+    borderRadius: "3px"
+  },
+  taskItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "8px"
+  }
 };
