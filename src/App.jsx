@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 
-// ----- Utility -----
 const todayISO = () => new Date().toISOString().split("T")[0];
 const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
@@ -12,15 +11,13 @@ export default function App() {
   const [forgiveLeft, setForgiveLeft] = useState(6);
   const [xpFrozen, setXpFrozen] = useState(false);
   const [deathDay, setDeathDay] = useState("");
-  const [view, setView] = useState("dashboard"); // dashboard | calendar | reports
+  const [view, setView] = useState("dashboard"); 
   const [bg, setBg] = useState(
     "https://images.alphacoders.com/128/1280491.jpg"
   );
 
-  // XP required per level
   const xpRequired = 500 * level;
 
-  // ---- Level up check ----
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -29,9 +26,7 @@ export default function App() {
     }
   }, [xp]);
 
-  // ---- Add Task ----
   const addTask = (task) => {
-    // Prevent duplicate wake up tasks
     if (task.name.toLowerCase() === "wake up") {
       if (tasks.some((t) => t.date === task.date && t.name.toLowerCase() === "wake up")) {
         alert("Wake Up task already exists for this day!");
@@ -41,31 +36,26 @@ export default function App() {
     setTasks([...tasks, task]);
   };
 
-  // ---- Complete Task ----
   const completeTask = (index) => {
     if (xpFrozen) return;
-
     const newTasks = [...tasks];
     const task = newTasks[index];
 
-    // Wake Up rule check
     if (task.name.toLowerCase() === "wake up") {
       const now = new Date();
       const taskTime = new Date(`${task.date}T${task.time}`);
-      const diffMinutes = (now - taskTime) / 1000 / 60;
+      const diffMinutes = (now - taskTime) / 60000;
       if (diffMinutes > 10) {
         setXpFrozen(true);
         alert("Wake Up task late! XP frozen for today.");
         return;
       }
     }
-
     newTasks[index].done = true;
     setTasks(newTasks);
     setXp((prev) => prev + 10);
   };
 
-  // ---- Forgive ----
   const forgiveTask = (index) => {
     if (forgiveLeft <= 0) return alert("No forgives left!");
     const newTasks = [...tasks];
@@ -78,7 +68,6 @@ export default function App() {
     setForgiveLeft((prev) => prev - 1);
   };
 
-  // ---- Delete Task ----
   const deleteTask = (index) => {
     if (tasks[index].name.toLowerCase() === "wake up") {
       alert("Cannot delete Wake Up task!");
@@ -89,31 +78,24 @@ export default function App() {
     setTasks(newTasks);
   };
 
-  // ---- Filter tasks by selectedDate ----
   const filteredTasks = tasks.filter((t) => t.date === selectedDate);
 
-  // ---- Handle Add Task Form ----
   const handleSubmit = (e) => {
     e.preventDefault();
     const form = e.target;
     const name = form.name.value;
     const date = form.date.value;
     const time = form.time.value;
-
     if (!name || !date || !time) return alert("Fill required fields!");
     addTask({ name, date, time, duration: form.duration.value, done: false });
     form.reset();
   };
 
-  // ---- Death Mode active days ----
   const isDeathDay =
     new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long" }) ===
     deathDay;
+  const deathModeActive = isDeathDay || level >= 7; 
 
-  const deathModeActive =
-    (level >= 7 && ["double", "death"].includes("double")) || isDeathDay;
-
-  // ---- Simple Reports ----
   const completedTasks = tasks.filter((t) => t.done).length;
   const totalTasks = tasks.length;
 
@@ -121,16 +103,18 @@ export default function App() {
     <div
       className="min-h-screen text-white"
       style={{
-        background: `url(${bg}) center/cover no-repeat fixed`,
-        backdropFilter: "blur(4px)",
+        backgroundImage: `url(${bg})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundAttachment: "fixed",
       }}
     >
       {/* NAVBAR */}
-      <div className="sticky top-0 z-50 bg-black bg-opacity-70 flex justify-between px-4 py-3 shadow-lg">
-        <h1 className="text-2xl font-bold tracking-widest text-red-500">
+      <div className="sticky top-0 z-50 bg-black bg-opacity-70 flex justify-between px-3 py-2 shadow-lg">
+        <h1 className="text-lg md:text-2xl font-bold tracking-widest text-red-500">
           Akatsuki Habit
         </h1>
-        <div className="flex gap-4">
+        <div className="flex gap-2">
           {["dashboard", "calendar", "reports"].map((item) => (
             <button
               key={item}
@@ -138,7 +122,7 @@ export default function App() {
                 setView(item);
                 scrollToTop();
               }}
-              className={`px-4 py-2 rounded-md transition ${
+              className={`px-2 md:px-3 py-1 rounded-md text-xs md:text-sm transition ${
                 view === item
                   ? "bg-red-500 text-white scale-105"
                   : "bg-gray-800 hover:bg-red-500"
@@ -151,11 +135,11 @@ export default function App() {
       </div>
 
       {/* MAIN VIEW */}
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         {/* DASHBOARD */}
         {view === "dashboard" && (
           <div>
-            <p className="mb-4 text-lg">
+            <p className="mb-4 text-sm md:text-lg">
               Level: {level} | XP: {xp}/{xpRequired}{" "}
               {xpFrozen && "(Frozen)"} | Forgives: {forgiveLeft}
             </p>
@@ -191,8 +175,8 @@ export default function App() {
                 min="5"
                 className="px-2 py-1 rounded text-black"
               />
-              <button className="bg-red-500 px-4 py-1 rounded hover:bg-red-700">
-                Add Task
+              <button className="bg-red-500 px-3 py-1 text-xs md:text-sm rounded hover:bg-red-700">
+                Add
               </button>
             </form>
 
@@ -219,29 +203,29 @@ export default function App() {
                       task.done ? "border-green-400 border" : ""
                     }`}
                   >
-                    <h3 className="text-xl font-bold">{task.name}</h3>
-                    <p>
+                    <h3 className="text-lg font-bold">{task.name}</h3>
+                    <p className="text-sm">
                       {task.time} - {task.duration} min
                     </p>
                     {!task.done ? (
-                      <div className="mt-2 flex gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         <button
                           onClick={() => completeTask(tasks.indexOf(task))}
-                          className="bg-green-500 px-3 py-1 rounded hover:bg-green-700"
+                          className="bg-green-500 px-2 py-1 rounded text-xs hover:bg-green-700"
                         >
                           Done
                         </button>
                         {!deathModeActive && (
                           <button
                             onClick={() => forgiveTask(tasks.indexOf(task))}
-                            className="bg-yellow-500 px-3 py-1 rounded hover:bg-yellow-700"
+                            className="bg-yellow-500 px-2 py-1 rounded text-xs hover:bg-yellow-700"
                           >
                             Forgive
                           </button>
                         )}
                         <button
                           onClick={() => deleteTask(tasks.indexOf(task))}
-                          className="bg-red-500 px-3 py-1 rounded hover:bg-red-700"
+                          className="bg-red-500 px-2 py-1 rounded text-xs hover:bg-red-700"
                         >
                           Delete
                         </button>
@@ -258,17 +242,17 @@ export default function App() {
           </div>
         )}
 
-        {/* CALENDAR (simple) */}
+        {/* CALENDAR */}
         {view === "calendar" && (
-          <div className="bg-black bg-opacity-60 p-6 rounded-lg">
-            <h2 className="text-2xl mb-4">Calendar View</h2>
+          <div className="bg-black bg-opacity-60 p-4 md:p-6 rounded-lg">
+            <h2 className="text-xl mb-4">Calendar View</h2>
             {tasks.map((t, i) => (
               <p key={i}>
                 {t.date} - {t.name} {t.done && "✔"}
               </p>
             ))}
             <div className="mt-4">
-              <label>Select Death Mode Day: </label>
+              <label className="mr-2">Select Death Mode Day: </label>
               <select
                 value={deathDay}
                 onChange={(e) => setDeathDay(e.target.value)}
@@ -293,14 +277,20 @@ export default function App() {
 
         {/* REPORTS */}
         {view === "reports" && (
-          <div className="bg-black bg-opacity-60 p-6 rounded-lg">
-            <h2 className="text-2xl mb-4">Reports</h2>
+          <div className="bg-black bg-opacity-60 p-4 md:p-6 rounded-lg">
+            <h2 className="text-xl mb-4">Reports</h2>
             <p>Total Tasks: {totalTasks}</p>
             <p>Completed: {completedTasks}</p>
-            <p>Completion Rate: {totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0}%</p>
+            <p>
+              Completion Rate:{" "}
+              {totalTasks > 0
+                ? ((completedTasks / totalTasks) * 100).toFixed(1)
+                : 0}
+              %
+            </p>
           </div>
         )}
       </div>
     </div>
   );
-    }
+                                   }
