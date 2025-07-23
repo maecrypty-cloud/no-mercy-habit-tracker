@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 
-// Dummy anime backgrounds
 const animeBackgrounds = [
   "https://wallpaperaccess.com/full/2123655.jpg",
   "https://wallpaperaccess.com/full/2123646.jpg",
@@ -10,16 +9,11 @@ const animeBackgrounds = [
 ];
 
 export default function App() {
-  // Auth state
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem("nm_user");
     return saved ? JSON.parse(saved) : null;
   });
 
-  // Background
-  const [bg, setBg] = useState("");
-
-  // XP & Level System
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem("nm_tasks");
     return saved ? JSON.parse(saved) : [];
@@ -30,23 +24,19 @@ export default function App() {
     Number(localStorage.getItem("nm_forgive") || 6)
   );
   const [xpFrozen, setXpFrozen] = useState(false);
+  const [deathDay, setDeathDay] = useState(localStorage.getItem("nm_deathDay") || "");
 
-  // UI state
-  const [activeTab, setActiveTab] = useState("home");
+  const [bg, setBg] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
-  const [deathDay, setDeathDay] = useState(() =>
-    localStorage.getItem("nm_deathDay") || ""
-  );
+  const [activeTab, setActiveTab] = useState("home");
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  // XP required per level
   const xpRequired = 500 * level;
 
-  // Background randomizer
   useEffect(() => {
     setBg(animeBackgrounds[Math.floor(Math.random() * animeBackgrounds.length)]);
   }, []);
 
-  // Persist state
   useEffect(() => {
     localStorage.setItem("nm_tasks", JSON.stringify(tasks));
     localStorage.setItem("nm_xp", xp);
@@ -55,25 +45,6 @@ export default function App() {
     localStorage.setItem("nm_deathDay", deathDay);
   }, [tasks, xp, level, forgiveLeft, deathDay]);
 
-  // Auto wake-up task (if not present for the day)
-  useEffect(() => {
-    const wakeToday = tasks.find(
-      (t) => t.date === selectedDate && t.isWakeUp
-    );
-    if (!wakeToday) {
-      const wakeTask = {
-        name: "Wake Up Early",
-        date: selectedDate,
-        time: "06:00",
-        duration: 0,
-        isWakeUp: true,
-        done: false
-      };
-      setTasks((prev) => [...prev, wakeTask]);
-    }
-  }, [selectedDate]);
-
-  // Level up
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -82,9 +53,7 @@ export default function App() {
     }
   }, [xp]);
 
-  const addTask = (task) => {
-    setTasks((prev) => [...prev, task]);
-  };
+  const addTask = (task) => setTasks((prev) => [...prev, task]);
 
   const completeTask = (index) => {
     if (xpFrozen) return;
@@ -93,49 +62,29 @@ export default function App() {
 
     newTasks[index].done = true;
     setTasks(newTasks);
-
-    if (newTasks[index].isWakeUp) {
-      const now = new Date();
-      const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
-      const diffMinutes = (now - taskTime) / 1000 / 60;
-      if (diffMinutes > 10) {
-        setXpFrozen(true);
-        alert("Wake Up task late! XP frozen for today.");
-        return;
-      }
-    }
-
     setXp((prev) => prev + 10);
   };
 
   const forgiveTask = (index) => {
-    if (forgiveLeft <= 0) {
-      alert("No forgives left!");
-      return;
-    }
+    if (forgiveLeft <= 0) return alert("No forgives left!");
     const newTasks = [...tasks];
     newTasks[index].done = true;
     setTasks(newTasks);
     setForgiveLeft((prev) => prev - 1);
-
-    if (newTasks[index].isWakeUp) {
-      setXpFrozen(true);
-      alert("Wake Up task forgiven! XP frozen for today.");
-    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const form = e.target;
-    const name = form.name.value;
-    const date = form.date.value;
-    const time = form.time.value;
-    const duration = form.duration.value;
-    const isWakeUp = form.isWakeUp.checked;
-
-    if (!name || !date || !time) return alert("Please fill required fields!");
-    addTask({ name, date, time, duration, isWakeUp, done: false });
-    form.reset();
+    const { name, date, time, duration } = e.target;
+    if (!name.value || !date.value || !time.value) return alert("Fill required fields");
+    addTask({
+      name: name.value,
+      date: date.value,
+      time: time.value,
+      duration: duration.value,
+      done: false
+    });
+    e.target.reset();
   };
 
   const filteredTasks = tasks.filter((t) => t.date === selectedDate);
@@ -185,15 +134,21 @@ export default function App() {
       className="min-h-screen bg-cover bg-center text-white"
       style={{ backgroundImage: `url(${bg})` }}
     >
-      {/* Navbar */}
-      <nav className="flex justify-between items-center p-4 bg-black/60">
+      {/* Responsive Navbar */}
+      <nav className="flex justify-between items-center p-4 bg-black/60 relative">
         <h1 className="text-xl font-bold">No Mercy</h1>
-        <div className="flex gap-4">
+        <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
+          ☰
+        </button>
+        <div className={`md:flex gap-4 ${menuOpen ? "absolute top-14 left-0 w-full bg-black/80 p-4" : "hidden md:flex"}`}>
           {["home", "tasks", "reports", "death", "profile"].map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1 rounded ${
+              onClick={() => {
+                setActiveTab(tab);
+                setMenuOpen(false);
+              }}
+              className={`px-3 py-1 rounded block ${
                 activeTab === tab ? "bg-red-600" : "bg-gray-700 hover:bg-gray-500"
               }`}
             >
@@ -202,7 +157,7 @@ export default function App() {
           ))}
           <button
             onClick={logout}
-            className="px-3 py-1 bg-red-800 hover:bg-red-600 rounded"
+            className="px-3 py-1 bg-red-800 hover:bg-red-600 rounded block"
           >
             Logout
           </button>
@@ -233,19 +188,18 @@ export default function App() {
                     className="p-2 bg-black/60 rounded flex justify-between"
                   >
                     <div>
-                      <span className="font-bold">{task.name}</span> - {task.time}{" "}
-                      {task.isWakeUp && "🌞"}
+                      <span className="font-bold">{task.name}</span> - {task.time}
                     </div>
                     {!task.done ? (
                       <div className="space-x-2">
                         <button
-                          onClick={() => completeTask(idx)}
+                          onClick={() => completeTask(tasks.indexOf(task))}
                           className="bg-green-600 px-2 rounded hover:bg-green-800"
                         >
                           Done
                         </button>
                         <button
-                          onClick={() => forgiveTask(idx)}
+                          onClick={() => forgiveTask(tasks.indexOf(task))}
                           className="bg-yellow-600 px-2 rounded hover:bg-yellow-800"
                         >
                           Forgive
@@ -285,9 +239,6 @@ export default function App() {
                 defaultValue="30"
                 className="p-2 rounded text-black"
               />
-              <label className="flex items-center gap-1">
-                <input type="checkbox" name="isWakeUp" /> WakeUp Task
-              </label>
               <button
                 type="submit"
                 className="bg-red-600 hover:bg-red-800 px-4 rounded"
@@ -303,9 +254,6 @@ export default function App() {
             <h2 className="text-2xl font-bold mb-4">Reports</h2>
             <p>Daily: {filteredTasks.filter((t) => t.done).length} done</p>
             <p>Weekly: {tasks.filter((t) => t.done).length} done</p>
-            <p className="text-sm text-gray-300">
-              (Charts placeholder — can integrate chart.js later)
-            </p>
           </div>
         )}
 
@@ -350,4 +298,4 @@ export default function App() {
       </div>
     </div>
   );
-                                                           }
+      }
