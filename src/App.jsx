@@ -1,124 +1,101 @@
-import { useState, useEffect } from "react";
-import WakeUpTask from "./WakeUpTask";
+import { useState } from "react";
+import WakeUpTask from "./components/WakeUpTask";
 
-function App() {
-  const [xp, setXP] = useState(0);
+export default function App() {
   const [level, setLevel] = useState(1);
+  const [xp, setXp] = useState(0);
   const [forgives, setForgives] = useState(6);
-  const [xpFrozen, setXpFrozen] = useState(false);
   const [habits, setHabits] = useState([]);
-  const [newHabit, setNewHabit] = useState("");
 
-  // XP Add
-  const addXP = (amount) => {
-    if (!xpFrozen) {
-      const updatedXP = xp + amount;
-      setXP(updatedXP);
-      levelUpCheck(updatedXP);
-    }
+  const handleWakeUpComplete = () => {
+    setXp((prev) => prev + 10);
   };
 
-  // XP Freeze
-  const freezeXPForToday = () => {
-    setXpFrozen(true);
-    alert("Wake Up Task missed! XP frozen for today.");
+  const addHabit = (name) => {
+    if (!name) return;
+    setHabits((prev) => [...prev, { name, done: false }]);
   };
 
-  // Level up check
-  const levelUpCheck = (xpValue) => {
-    if (level === 1 && xpValue >= 500) {
-      setLevel(2);
-      setForgives(5);
-    } else if (level === 2 && xpValue >= 1000) {
-      setLevel(3);
-      setForgives(4);
-    }
-    // Add more if needed
-  };
-
-  // Add habit
-  const addHabit = () => {
-    if (newHabit.trim() !== "") {
-      setHabits([...habits, { text: newHabit, completed: false }]);
-      setNewHabit("");
-    }
-  };
-
-  // Complete habit
   const completeHabit = (index) => {
-    const updated = [...habits];
-    updated[index].completed = !updated[index].completed;
-    setHabits(updated);
-    if (updated[index].completed) addXP(10);
+    setHabits((prev) =>
+      prev.map((h, i) => (i === index ? { ...h, done: true } : h))
+    );
+    setXp((prev) => prev + 5);
   };
 
   return (
-    <div className="p-4 font-sans">
-      <h1 className="text-3xl font-bold mb-4">No Mercy Habit Tracker</h1>
+    <div style={{ fontFamily: "cursive", padding: "1rem" }}>
+      <h1>No Mercy Habit Tracker</h1>
 
-      {/* Wake Up Task */}
-      <WakeUpTask onComplete={addXP} freezeXP={freezeXPForToday} />
+      <WakeUpTask onComplete={handleWakeUpComplete} />
 
-      {/* Level and XP */}
-      <div className="p-4 bg-yellow-100 rounded mt-4">
-        <h2 className="text-lg font-bold">Level: {level}</h2>
+      <div style={{ background: "#fff3c4", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
+        <h3>Level: {level}</h3>
         <p>XP: {xp}</p>
       </div>
 
-      {/* Forgives */}
-      <div className="p-4 bg-purple-100 rounded mt-4">
+      <div style={{ background: "#f3e8ff", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
         <p>Forgives left: {forgives}</p>
         <button
-          className="bg-purple-500 text-white px-3 py-1 rounded mt-2"
-          disabled={forgives <= 0}
-          onClick={() => setForgives((f) => Math.max(0, f - 1))}
+          onClick={() => setForgives((f) => (f > 0 ? f - 1 : 0))}
+          style={{
+            background: "#a855f7",
+            color: "#fff",
+            padding: "0.5rem 1rem",
+            borderRadius: "4px",
+            border: "none",
+          }}
         >
           Use Forgive
         </button>
       </div>
 
-      {/* Add habit */}
-      <div className="flex mt-4">
+      <div style={{ marginTop: "1rem" }}>
         <input
-          value={newHabit}
-          onChange={(e) => setNewHabit(e.target.value)}
+          type="text"
           placeholder="New Habit"
-          className="border px-2 py-1 rounded flex-1"
+          id="habitInput"
+          style={{ padding: "0.5rem", width: "70%" }}
         />
         <button
-          onClick={addHabit}
-          className="bg-blue-500 text-white px-4 py-1 rounded ml-2"
+          onClick={() => {
+            const input = document.getElementById("habitInput");
+            addHabit(input.value);
+            input.value = "";
+          }}
+          style={{
+            background: "#3b82f6",
+            color: "#fff",
+            padding: "0.5rem 1rem",
+            border: "none",
+            marginLeft: "5px",
+          }}
         >
           Add
         </button>
       </div>
 
-      {/* Habit list */}
-      <ul className="mt-4">
-        {habits.map((habit, i) => (
-          <li key={i} className="flex items-center justify-between mb-2">
-            <span
-              className={habit.completed ? "line-through text-gray-500" : ""}
-            >
-              {habit.text}
-            </span>
+      <ul>
+        {habits.map((habit, index) => (
+          <li key={index} style={{ margin: "5px 0" }}>
+            {habit.name}{" "}
             <button
-              onClick={() => completeHabit(i)}
-              className="bg-green-500 text-white px-2 py-1 rounded"
+              onClick={() => completeHabit(index)}
+              disabled={habit.done}
+              style={{
+                background: habit.done ? "#ccc" : "#22c55e",
+                color: "#fff",
+                border: "none",
+                padding: "0.2rem 0.5rem",
+              }}
             >
-              {habit.completed ? "Undo" : "Done"}
+              Done
             </button>
           </li>
         ))}
       </ul>
 
-      {/* Analytics */}
-      <div className="mt-6">
-        <h2 className="text-xl font-bold">Analytics</h2>
-        <p>Coming soon...</p>
-      </div>
+      <p style={{ marginTop: "1rem" }}>Analytics Coming soon...</p>
     </div>
   );
 }
-
-export default App;
