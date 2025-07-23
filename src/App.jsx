@@ -1,233 +1,213 @@
 import React, { useState, useEffect } from "react";
 
-const ANIME_BACKGROUNDS = [
-  "https://wallpapercave.com/wp/wp9114789.jpg",
-  "https://wallpapercave.com/wp/wp7418470.jpg",
-  "https://wallpapercave.com/wp/wp5739442.jpg",
-  "https://wallpapercave.com/wp/wp7992352.jpg",
-  "https://wallpapercave.com/wp/wp1810734.jpg",
-];
-const ANIME_CHARACTERS = [
-  "Itachi Uchiha",
-  "Madara Uchiha",
-  "Pain",
-  "Obito Uchiha",
-  "Kisame Hoshigaki",
-];
-
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
-  const [tasks, setTasks] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
-  const [xp, setXp] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [forgiveLeft, setForgiveLeft] = useState(6);
+  const [tasks, setTasks] = useState(() => JSON.parse(localStorage.getItem("tasks")) || []);
+  const [xp, setXp] = useState(() => parseInt(localStorage.getItem("xp")) || 0);
+  const [level, setLevel] = useState(() => parseInt(localStorage.getItem("level")) || 1);
+  const [forgiveLeft, setForgiveLeft] = useState(() => parseInt(localStorage.getItem("forgive")) || 6);
   const [xpFrozen, setXpFrozen] = useState(false);
-  const [deathDay, setDeathDay] = useState(null);
-  const [page, setPage] = useState("home");
-  const [bg, setBg] = useState(ANIME_BACKGROUNDS[0]);
-  const [currentCharacter, setCurrentCharacter] = useState(ANIME_CHARACTERS[0]);
+  const [selectedPage, setSelectedPage] = useState("home");
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   const xpRequired = 500 * level;
 
-  // ---- Load Saved Data ----
+  // Save to LocalStorage
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("no_mercy_data"));
-    if (saved) {
-      setLoggedIn(saved.loggedIn || false);
-      setUsername(saved.username || "");
-      setTasks(saved.tasks || []);
-      setSelectedDate(saved.selectedDate || new Date().toISOString().split("T")[0]);
-      setXp(saved.xp || 0);
-      setLevel(saved.level || 1);
-      setForgiveLeft(saved.forgiveLeft ?? 6);
-      setXpFrozen(saved.xpFrozen || false);
-      setDeathDay(saved.deathDay || null);
-      setBg(saved.bg || ANIME_BACKGROUNDS[0]);
-      setCurrentCharacter(saved.currentCharacter || ANIME_CHARACTERS[0]);
-    }
-  }, []);
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+    localStorage.setItem("xp", xp);
+    localStorage.setItem("level", level);
+    localStorage.setItem("forgive", forgiveLeft);
+  }, [tasks, xp, level, forgiveLeft]);
 
-  // ---- Save Data ----
-  useEffect(() => {
-    localStorage.setItem(
-      "no_mercy_data",
-      JSON.stringify({
-        loggedIn,
-        username,
-        tasks,
-        selectedDate,
-        xp,
-        level,
-        forgiveLeft,
-        xpFrozen,
-        deathDay,
-        bg,
-        currentCharacter,
-      })
-    );
-  }, [loggedIn, username, tasks, selectedDate, xp, level, forgiveLeft, xpFrozen, deathDay, bg, currentCharacter]);
-
-  // ---- Level Up ----
+  // Level up
   useEffect(() => {
     if (xp >= xpRequired) {
-      setLevel((prev) => prev + 1);
+      setLevel((p) => p + 1);
       setXp(0);
-      setForgiveLeft((prev) => Math.max(1, prev - 1));
-      const randomBg = ANIME_BACKGROUNDS[Math.floor(Math.random() * ANIME_BACKGROUNDS.length)];
-      const randomChar = ANIME_CHARACTERS[Math.floor(Math.random() * ANIME_CHARACTERS.length)];
-      setBg(randomBg);
-      setCurrentCharacter(randomChar);
-      alert(`Level Up! You unlocked ${randomChar}`);
+      setForgiveLeft((p) => Math.max(1, p - 1));
     }
   }, [xp]);
+
+  // Auto-add WakeUp task daily
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    if (!tasks.some((t) => t.date === today && t.isWakeUp)) {
+      const wake = { name: "WakeUp", date: today, time: "06:00", duration: 5, isWakeUp: true, done: false };
+      setTasks((prev) => [...prev, wake]);
+    }
+  }, [tasks]);
 
   const addTask = (task) => setTasks([...tasks, task]);
 
   const completeTask = (index) => {
-    if (xpFrozen) return;
+    if (xpFrozen) return alert("XP Frozen today!");
     const newTasks = [...tasks];
     newTasks[index].done = true;
     setTasks(newTasks);
-    setXp((prev) => prev + 10);
+
+    if (newTasks[index].isWakeUp) {
+      const now = new Date();
+      const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
+      const diffMinutes = (now - taskTime) / 1000 / 60;
+      if (diffMinutes > 10) {
+        setXpFrozen(true);
+        alert("WakeUp late → XP frozen today!");
+        return;
+      }
+    }
+    setXp((p) => p + 10);
   };
 
   const forgiveTask = (index) => {
     if (forgiveLeft <= 0) return alert("No forgives left!");
+    if (tasks[index].isWakeUp) {
+      setXpFrozen(true);
+      alert("Forgive used on WakeUp → XP frozen today!");
+    }
     const newTasks = [...tasks];
     newTasks[index].done = true;
     setTasks(newTasks);
-    setForgiveLeft((prev) => prev - 1);
+    setForgiveLeft((p) => p - 1);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const form = e.target;
-    const name = form.name.value;
-    const time = form.time.value;
-    const duration = form.duration.value;
-    const isWakeUp = form.isWakeUp.checked;
-    if (!name || !time) return alert("Fill all fields");
-    addTask({ name, date: selectedDate, time, duration, isWakeUp, done: false });
-    form.reset();
+    const f = e.target;
+    const task = {
+      name: f.name.value,
+      date: f.date.value,
+      time: f.time.value,
+      duration: f.duration.value,
+      isWakeUp: f.isWakeUp.checked,
+      done: false,
+    };
+    addTask(task);
+    f.reset();
   };
 
-  const filteredTasks = tasks.filter((t) => t.date === selectedDate);
+  const filteredTasks = tasks.filter((t) => t.date === selectedDate.toISOString().split("T")[0]);
+
+  // Reports
+  const today = new Date().toISOString().split("T")[0];
+  const dailyCompleted = tasks.filter((t) => t.date === today && t.done).length;
+  const dailyTotal = tasks.filter((t) => t.date === today).length;
+  const weekTasks = tasks.filter((t) => {
+    const d = new Date(t.date);
+    const now = new Date();
+    const diff = (now - d) / (1000 * 60 * 60 * 24);
+    return diff < 7;
+  });
+  const weeklyCompleted = weekTasks.filter((t) => t.done).length;
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setUsername(e.target.username.value);
+    setLoggedIn(true);
+  };
 
   const logout = () => {
-    localStorage.removeItem("no_mercy_data");
-    setLoggedIn(false);
-    setUsername("");
+    localStorage.clear();
     setTasks([]);
     setXp(0);
     setLevel(1);
     setForgiveLeft(6);
-    setXpFrozen(false);
-    setDeathDay(null);
-    setPage("home");
+    setLoggedIn(false);
   };
 
-  // ---- Login Screen ----
+  // Background anime wallpaper
+  const bgStyle = {
+    backgroundImage: "url('https://wallpaperaccess.com/full/6565741.jpg')",
+    backgroundSize: "cover",
+    minHeight: "100vh",
+    padding: "20px",
+    color: "white",
+    fontFamily: "cursive",
+  };
+
   if (!loggedIn) {
     return (
-      <div style={{
-        height: "100vh", display: "flex", justifyContent: "center",
-        alignItems: "center", background: `url(${bg}) center/cover`, color: "white"
-      }}>
-        <form onSubmit={(e) => { e.preventDefault(); setUsername(e.target.username.value); setLoggedIn(true); }}
-          style={{
-            background: "rgba(0,0,0,0.7)", padding: 20, borderRadius: 10,
-            display: "flex", flexDirection: "column", gap: 10, width: 300
-          }}>
-          <h1 style={{ textAlign: "center" }}>No Mercy Login</h1>
-          <input name="username" placeholder="Username" required style={{ padding: 10 }} />
-          <button type="submit" style={{ padding: 10, background: "#e50914", color: "white", border: "none", cursor: "pointer" }}>
-            Enter
-          </button>
+      <div style={bgStyle}>
+        <h1>Login</h1>
+        <form onSubmit={handleLogin}>
+          <input name="username" placeholder="Enter name" required />
+          <button type="submit">Start</button>
         </form>
       </div>
     );
   }
 
   return (
-    <div style={{
-      minHeight: "100vh",
-      background: `url(${bg}) center/cover`,
-      color: "white", fontFamily: "cursive", padding: 20
-    }}>
-      {/* Navbar */}
-      <nav style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontWeight: "bold", fontSize: 20 }}>No Mercy ({username})</div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={() => setPage("home")} style={navBtn}>Home</button>
-          <button onClick={() => setPage("death")} style={navBtn}>Death Mode</button>
-          <button onClick={() => setPage("profile")} style={navBtn}>Profile</button>
-          <button onClick={logout} style={navBtn}>Logout</button>
-        </div>
+    <div style={bgStyle}>
+      <nav style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        <button onClick={() => setSelectedPage("home")}>Home</button>
+        <button onClick={() => setSelectedPage("death")}>Death Mode</button>
+        <button onClick={() => setSelectedPage("reports")}>Reports</button>
+        <button onClick={() => setSelectedPage("profile")}>Profile</button>
+        <button onClick={logout}>Logout</button>
       </nav>
 
-      {page === "home" && (
+      {selectedPage === "home" && (
         <>
-          <h1>{currentCharacter} | Level {level}</h1>
-          <p>XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgive: {forgiveLeft}</p>
-          <form onSubmit={handleSubmit} style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 }}>
+          <h1>No Mercy Habit Tracker</h1>
+          <p>Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgive left: {forgiveLeft}</p>
+
+          <form onSubmit={handleSubmit} style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <input type="text" name="name" placeholder="Task name" required />
+            <input type="date" name="date" required />
             <input type="time" name="time" required />
-            <input type="number" name="duration" defaultValue={30} />
-            <label><input type="checkbox" name="isWakeUp" /> WakeUp</label>
-            <button type="submit" style={addBtn}>Add</button>
+            <input type="number" name="duration" min="5" defaultValue={30} />
+            <label><input type="checkbox" name="isWakeUp" /> WakeUp Task</label>
+            <button type="submit">Add Task</button>
           </form>
-          <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-          <ul style={{ marginTop: 10 }}>
+
+          <h2>Tasks for {selectedDate.toDateString()}</h2>
+          <input type="date" value={selectedDate.toISOString().split("T")[0]} onChange={(e) => setSelectedDate(new Date(e.target.value))}/>
+          <ul>
             {filteredTasks.length > 0 ? filteredTasks.map((task, idx) => (
-              <li key={idx} style={taskItem}>
-                {task.name} - {task.time} {task.isWakeUp && "🌞"}
+              <li key={idx}>
+                {task.name} - {task.time} ({task.duration}min){task.isWakeUp && " 🌞"}
                 {!task.done ? (
                   <>
-                    <button onClick={() => completeTask(idx)} style={taskBtn}>Done</button>
-                    <button onClick={() => forgiveTask(idx)} style={taskBtn}>Forgive</button>
+                    <button onClick={() => completeTask(idx)}>Done</button>
+                    <button onClick={() => forgiveTask(idx)}>Forgive</button>
                   </>
-                ) : <span>✔</span>}
+                ) : <span> ✔</span>}
               </li>
-            )) : <p>No tasks</p>}
+            )) : <p>No tasks for this date</p>}
           </ul>
         </>
       )}
 
-      {page === "death" && (
-        <div style={card}>
-          <h2>Death Mode Rules</h2>
-          <p>Select one day each week. On that day all tasks must be done (no forgive allowed).</p>
-          <select value={deathDay || ""} onChange={(e) => setDeathDay(e.target.value)}>
-            <option value="">Select Day</option>
-            {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-          {deathDay && <p>Death Mode Active on: {deathDay}</p>}
-        </div>
+      {selectedPage === "reports" && (
+        <>
+          <h2>Reports</h2>
+          <p>Today: {dailyCompleted}/{dailyTotal} tasks completed</p>
+          <p>Last 7 days: {weeklyCompleted}/{weekTasks.length} tasks completed</p>
+        </>
       )}
 
-      {page === "profile" && (
-        <div style={card}>
+      {selectedPage === "profile" && (
+        <>
           <h2>Profile</h2>
-          <p>User: {username}</p>
+          <p>Name: {username}</p>
           <p>Level: {level}</p>
-          <p>XP: {xp}/{xpRequired}</p>
-          <p>Forgive Left: {forgiveLeft}</p>
-          <p>Death Day: {deathDay || "None"}</p>
-        </div>
+          <p>XP: {xp}</p>
+        </>
+      )}
+
+      {selectedPage === "death" && (
+        <>
+          <h2>Death Mode Rules</h2>
+          <ul>
+            <li>No social media</li>
+            <li>10 focused tasks</li>
+            <li>No mobile use</li>
+            <li>Work 4hr + break 20min + 4hr</li>
+          </ul>
+        </>
       )}
     </div>
   );
-}
-
-// ---- Styles ----
-const navBtn = { padding: "8px 12px", background: "#e50914", border: "none", color: "white", cursor: "pointer" };
-const addBtn = { padding: "5px 10px", background: "#1db954", border: "none", color: "white", cursor: "pointer" };
-const taskBtn = { marginLeft: 5, padding: "2px 6px", background: "#007bff", color: "white", border: "none" };
-const taskItem = { marginBottom: 5, background: "rgba(0,0,0,0.5)", padding: 5, borderRadius: 5 };
-const card = { background: "rgba(0,0,0,0.7)", padding: 20, borderRadius: 10, maxWidth: 400 };
+          }
