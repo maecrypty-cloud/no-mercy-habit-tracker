@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 // ---------- Constants ----------
-const PAIN_BG = "https://wallpaperaccess.com/full/211255.jpg"; // Akatsuki Pain
+const PAIN_BG = "https://wallpaperaccess.com/full/38169.jpg"; // Akatsuki Pain
 const getToday = () => new Date().toISOString().split("T")[0];
 const weekDays = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
