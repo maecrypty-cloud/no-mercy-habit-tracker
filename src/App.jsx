@@ -140,7 +140,13 @@ export default function App() {
         <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
           ☰
         </button>
-        <div className={`md:flex gap-4 ${menuOpen ? "absolute top-14 left-0 w-full bg-black/80 p-4" : "hidden md:flex"}`}>
+        <div
+  className={`md:flex gap-4 ${
+    menuOpen
+      ? "absolute top-14 left-0 w-full bg-black/80 p-4 z-50"
+      : "hidden md:flex"
+  }`}
+>
           {["home", "tasks", "reports", "death", "profile"].map((tab) => (
             <button
               key={tab}
