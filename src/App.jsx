@@ -1,99 +1,83 @@
 import React, { useState, useEffect } from "react";
 
-// LocalStorage Helpers
-const loadData = (key, fallback) =>
-  JSON.parse(localStorage.getItem(key)) || fallback;
-const saveData = (key, value) =>
-  localStorage.setItem(key, JSON.stringify(value));
-
 export default function App() {
-  const [tasks, setTasks] = useState(() => loadData("tasks", []));
-  const [xp, setXp] = useState(() => loadData("xp", 0));
-  const [level, setLevel] = useState(() => loadData("level", 1));
-  const [forgiveLeft, setForgiveLeft] = useState(() =>
-    loadData("forgiveLeft", 6)
-  );
+  const [tasks, setTasks] = useState(() => JSON.parse(localStorage.getItem("tasks")) || []);
+  const [xp, setXp] = useState(() => parseInt(localStorage.getItem("xp")) || 0);
+  const [level, setLevel] = useState(() => parseInt(localStorage.getItem("level")) || 1);
+  const [forgiveLeft, setForgiveLeft] = useState(() => parseInt(localStorage.getItem("forgiveLeft")) || 6);
   const [xpFrozen, setXpFrozen] = useState(false);
-  const [selectedPage, setSelectedPage] = useState("dashboard");
-  const [deathDay, setDeathDay] = useState(() => loadData("deathDay", null));
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [deathDay, setDeathDay] = useState(() => localStorage.getItem("deathDay") || "");
+  const [view, setView] = useState("dashboard");
 
   const xpRequired = 500 * level;
-  const todayDate = new Date().toISOString().split("T")[0];
 
-  // Save state to localStorage
+  // Save to localStorage
   useEffect(() => {
-    saveData("tasks", tasks);
-    saveData("xp", xp);
-    saveData("level", level);
-    saveData("forgiveLeft", forgiveLeft);
-    saveData("deathDay", deathDay);
+    localStorage.setItem("tasks", JSON.stringify(tasks));
+    localStorage.setItem("xp", xp);
+    localStorage.setItem("level", level);
+    localStorage.setItem("forgiveLeft", forgiveLeft);
+    localStorage.setItem("deathDay", deathDay);
   }, [tasks, xp, level, forgiveLeft, deathDay]);
 
-  // Level up
+  // Level Up
   useEffect(() => {
     if (xp >= xpRequired) {
-      setLevel((prev) => prev + 1);
+      setLevel(level + 1);
       setXp(0);
-      setForgiveLeft((prev) => Math.max(1, prev - 1));
+      setForgiveLeft(Math.max(1, forgiveLeft - 1));
+      alert("Level up! You are now level " + (level + 1));
     }
   }, [xp]);
 
-  // Wake up mandatory task check
-  useEffect(() => {
-    const wakeExists = tasks.some(
-      (t) => t.isWakeUp && t.date === todayDate
-    );
-    if (!wakeExists) {
-      setTasks((prev) => [
-        ...prev,
-        {
-          name: "Wake Up",
-          date: todayDate,
-          time: "07:00",
-          isWakeUp: true,
-          done: false,
-        },
-      ]);
-    }
-  }, [todayDate]);
-
-  const addTask = (task) => setTasks([...tasks, task]);
+  const addTask = (task) => {
+    setTasks([...tasks, task]);
+  };
 
   const completeTask = (index) => {
-    if (xpFrozen) return alert("XP Frozen today, complete tasks won't give XP!");
-    const updated = [...tasks];
-    updated[index].done = true;
-    setTasks(updated);
+    if (xpFrozen) return;
 
-    if (updated[index].isWakeUp) {
+    const newTasks = [...tasks];
+    if (newTasks[index].done) return;
+
+    // Wake Up check
+    if (newTasks[index].name.toLowerCase() === "wake up") {
       const now = new Date();
-      const taskTime = new Date(`${updated[index].date}T${updated[index].time}`);
-      const diff = (now - taskTime) / 1000 / 60;
-      if (diff > 10) {
+      const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
+      const diffMinutes = (now - taskTime) / 1000 / 60;
+      if (diffMinutes > 10) {
         setXpFrozen(true);
-        alert("WakeUp task late! XP frozen for today.");
+        alert("Wake Up late! XP frozen for today.");
         return;
       }
     }
-    setXp((prev) => prev + 10);
+
+    newTasks[index].done = true;
+    setTasks(newTasks);
+    setXp(xp + 10);
   };
 
   const forgiveTask = (index) => {
-    if (tasks[index].isWakeUp) {
-      setXpFrozen(true);
-      alert("WakeUp task forgiven, XP frozen!");
-    }
     if (forgiveLeft <= 0) return alert("No forgives left!");
-    const updated = [...tasks];
-    updated[index].done = true;
-    setTasks(updated);
-    setForgiveLeft((prev) => prev - 1);
+    if (tasks[index].name.toLowerCase() === "wake up") {
+      setXpFrozen(true);
+      alert("Forgiving Wake Up freezes XP for today!");
+    }
+    const newTasks = [...tasks];
+    newTasks[index].done = true;
+    setTasks(newTasks);
+    setForgiveLeft(forgiveLeft - 1);
   };
 
   const deleteTask = (index) => {
-    if (tasks[index].isWakeUp) return alert("Cannot delete WakeUp task!");
-    const updated = tasks.filter((_, i) => i !== index);
-    setTasks(updated);
+    if (tasks[index].name.toLowerCase() === "wake up") {
+      alert("Wake Up task cannot be deleted!");
+      return;
+    }
+    const newTasks = [...tasks];
+    newTasks.splice(index, 1);
+    setTasks(newTasks);
   };
 
   const handleSubmit = (e) => {
@@ -102,153 +86,98 @@ export default function App() {
     const name = form.name.value;
     const date = form.date.value;
     const time = form.time.value;
-    if (!name || !date || !time) return alert("Please fill required fields!");
-    addTask({ name, date, time, isWakeUp: false, done: false });
+    const duration = form.duration.value;
+
+    if (!name || !date || !time) return alert("All fields required!");
+    addTask({ name, date, time, duration, done: false });
     form.reset();
   };
 
-  const tasksToday = tasks.filter((t) => t.date === todayDate);
+  const todayTasks = tasks.filter((t) => t.date === selectedDate);
 
-  const handleLogout = () => {
+  const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
+  const doubleDeath = level >= 7;
+  const deathDays = doubleDeath ? [deathDay, "Sunday"] : [deathDay];
+
+  useEffect(() => {
+    if (deathDays.includes(today)) {
+      const allDone = todayTasks.every((t) => t.done);
+      if (!allDone && todayTasks.length > 0) {
+        setXpFrozen(true);
+      }
+    }
+  }, [todayTasks, today, deathDay, doubleDeath]);
+
+  const logout = () => {
     localStorage.clear();
     window.location.reload();
   };
 
-  const isDeathDay =
-    deathDay &&
-    new Date().toLocaleDateString("en-US", { weekday: "long" }) === deathDay;
-
-  // Death mode double after level 7
-  const activeDeathMode = isDeathDay || (level >= 7 && deathDay);
-
   return (
-    <div
-      className="min-h-screen text-white"
-      style={{
-        backgroundImage:
-          "url('https://wallpapercave.com/wp/wp2634112.jpg')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }}
-    >
+    <div className="min-h-screen text-white" style={{ backgroundImage: "url('https://wallpaperaccess.com/full/1972345.jpg')", backgroundSize: "cover" }}>
       {/* Navbar */}
-      <nav className="bg-black/60 backdrop-blur-md flex justify-between p-4 sticky top-0">
-        <div className="text-2xl font-bold">No Mercy</div>
-        <div className="space-x-4">
-          <button onClick={() => setSelectedPage("dashboard")}>Dashboard</button>
-          <button onClick={() => setSelectedPage("report")}>Reports</button>
-          <button onClick={() => setSelectedPage("settings")}>Settings</button>
-          <button onClick={handleLogout} className="text-red-400">
-            Logout
-          </button>
+      <nav className="flex justify-between items-center px-4 py-2 bg-black/50">
+        <h1 className="text-2xl font-bold">Akatsuki Habit</h1>
+        <div className="flex gap-4">
+          <button onClick={() => setView("dashboard")}>Dashboard</button>
+          <button onClick={() => setView("report")}>Reports</button>
+          <button onClick={() => setView("deathmode")}>Death Mode</button>
+          <button onClick={logout} className="bg-red-600 px-3 py-1 rounded">Logout</button>
         </div>
       </nav>
 
       {/* Dashboard */}
-      {selectedPage === "dashboard" && (
-        <div className="p-4 space-y-4">
-          <h1 className="text-3xl">Level {level}</h1>
-          <p>
-            XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgive left:{" "}
-            {forgiveLeft}
-          </p>
-
-          <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
-            <input name="name" placeholder="Task name" className="text-black p-2" />
-            <input type="date" name="date" className="text-black p-2" />
-            <input type="time" name="time" className="text-black p-2" />
-            <button type="submit" className="bg-red-500 px-4 py-2 rounded">
-              Add Task
-            </button>
+      {view === "dashboard" && (
+        <div className="p-4">
+          <p>Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgives left: {forgiveLeft}</p>
+          <form onSubmit={handleSubmit} className="flex gap-2 flex-wrap my-2">
+            <input name="name" placeholder="Task name" className="p-1 text-black" required />
+            <input type="date" name="date" className="p-1 text-black" required />
+            <input type="time" name="time" className="p-1 text-black" required />
+            <input type="number" name="duration" defaultValue={30} className="p-1 text-black" />
+            <button type="submit" className="bg-green-600 px-3 py-1 rounded">Add</button>
           </form>
-
-          <h2 className="text-xl">Tasks Today</h2>
-          <ul className="space-y-2">
-            {tasksToday.map((task, idx) => (
-              <li
-                key={idx}
-                className="bg-black/50 p-3 rounded flex justify-between"
-              >
-                <span>
-                  {task.name} - {task.time} {task.isWakeUp && "🌞"}{" "}
-                  {task.done && "✔"}
-                </span>
-                {!task.done && (
-                  <div className="space-x-2">
-                    <button
-                      className="bg-green-500 px-2"
-                      onClick={() => completeTask(idx)}
-                    >
-                      Done
-                    </button>
-                    <button
-                      className="bg-yellow-500 px-2"
-                      onClick={() => forgiveTask(idx)}
-                    >
-                      Forgive
-                    </button>
-                    {!task.isWakeUp && (
-                      <button
-                        className="bg-red-500 px-2"
-                        onClick={() => deleteTask(idx)}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                )}
+          <ul className="mt-4 space-y-2">
+            {todayTasks.length > 0 ? todayTasks.map((task, idx) => (
+              <li key={idx} className="bg-black/50 p-2 rounded">
+                {task.name} - {task.time} ({task.duration}min)
+                {!task.done ? (
+                  <>
+                    <button onClick={() => completeTask(idx)} className="ml-2 bg-blue-600 px-2">Done</button>
+                    <button onClick={() => forgiveTask(idx)} className="ml-2 bg-yellow-500 px-2">Forgive</button>
+                    <button onClick={() => deleteTask(idx)} className="ml-2 bg-red-500 px-2">Delete</button>
+                  </>
+                ) : <span className="ml-2">✔</span>}
               </li>
-            ))}
+            )) : <p>No tasks for this day</p>}
           </ul>
-
-          {activeDeathMode && (
-            <div className="bg-red-600 p-4 rounded">
-              <h2 className="text-2xl">Death Mode Active!</h2>
-              <p>
-                All tasks must be completed today. Missing one freezes XP for 24h.
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Report Page */}
-      {selectedPage === "report" && (
+      {/* Reports */}
+      {view === "report" && (
         <div className="p-4">
-          <h2 className="text-2xl">Weekly Report</h2>
-          <p>Total Tasks: {tasks.length}</p>
+          <h2 className="text-xl">Weekly Report</h2>
+          <p>Total tasks: {tasks.length}</p>
           <p>Completed: {tasks.filter((t) => t.done).length}</p>
-          <p>Pending: {tasks.filter((t) => !t.done).length}</p>
         </div>
       )}
 
-      {/* Settings */}
-      {selectedPage === "settings" && (
+      {/* Death Mode */}
+      {view === "deathmode" && (
         <div className="p-4">
-          <h2 className="text-2xl">Settings</h2>
-          <label>
-            Death Mode Day:
-            <select
-              value={deathDay || ""}
-              onChange={(e) => setDeathDay(e.target.value)}
-              className="text-black p-2"
-            >
-              <option value="">Select</option>
-              {[
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-                "Saturday",
-                "Sunday",
-              ].map((d) => (
-                <option key={d}>{d}</option>
-              ))}
-            </select>
-          </label>
+          <h2 className="text-xl">Set Your Death Day</h2>
+          <select value={deathDay} onChange={(e) => setDeathDay(e.target.value)} className="text-black p-1">
+            <option value="">--Select--</option>
+            <option value="Monday">Monday</option><option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option><option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+          </select>
+          <p className="mt-2">Current Death Day: {deathDay || "None"}</p>
+          {doubleDeath && <p>Double Death Mode Active: Sunday is fixed!</p>}
         </div>
       )}
     </div>
   );
-      }
+    }
