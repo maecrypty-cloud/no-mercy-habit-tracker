@@ -1,48 +1,47 @@
+// src/components/WakeUpTask.jsx
 import { useState, useEffect } from "react";
 
-function WakeUpTask({ onComplete, freezeXP }) {
-  const [timeLeft, setTimeLeft] = useState(600); // 10 min = 600 sec
-  const [completed, setCompleted] = useState(false);
+const WakeUpTask = ({ onComplete }) => {
+  const [timeLeft, setTimeLeft] = useState(600); // 10 min in seconds
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
-    if (timeLeft > 0 && !completed) {
-      const timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [timeLeft, completed]);
+    if (timeLeft <= 0 || done) return;
+    const timer = setInterval(() => setTimeLeft((t) => t - 1), 1000);
+    return () => clearInterval(timer);
+  }, [timeLeft, done]);
 
   const handleDone = () => {
-    if (timeLeft > 0) {
-      setCompleted(true);
-      onComplete(10); // XP +10
-    } else {
-      freezeXP(); // XP freeze if time expired
-    }
+    setDone(true);
+    onComplete && onComplete();
+  };
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec < 10 ? "0" + sec : sec}`;
   };
 
   return (
-    <div className="p-4 rounded bg-red-100">
-      <h2 className="text-xl font-bold">Wake Up Task</h2>
-      {!completed ? (
-        <>
-          <p className="text-sm">
-            Complete in: {Math.floor(timeLeft / 60)}:
-            {String(timeLeft % 60).padStart(2, "0")}
-          </p>
-          <button
-            onClick={handleDone}
-            className="bg-red-500 text-white px-3 py-1 rounded mt-2"
-          >
-            Done
-          </button>
-        </>
-      ) : (
-        <p className="text-green-600 font-semibold">Completed!</p>
-      )}
+    <div style={{ background: "#ffe5e5", padding: "1rem", borderRadius: "8px" }}>
+      <h2>Wake Up Task</h2>
+      {!done ? <p>Complete in: {formatTime(timeLeft)}</p> : <p>Task Completed!</p>}
+      <button
+        onClick={handleDone}
+        disabled={done}
+        style={{
+          background: done ? "#ccc" : "#f44336",
+          color: "#fff",
+          padding: "0.5rem 1rem",
+          borderRadius: "4px",
+          border: "none",
+          cursor: done ? "not-allowed" : "pointer",
+        }}
+      >
+        Done
+      </button>
     </div>
   );
-}
+};
 
 export default WakeUpTask;
