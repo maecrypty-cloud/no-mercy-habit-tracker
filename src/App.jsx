@@ -1,20 +1,15 @@
 import React, { useState, useEffect } from "react";
 
-const todayISO = () => new Date().toISOString().split("T")[0];
-const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
-
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [page, setPage] = useState("dashboard");
   const [tasks, setTasks] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(todayISO());
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
-  const [forgiveLeft, setForgiveLeft] = useState(6);
   const [xpFrozen, setXpFrozen] = useState(false);
-  const [deathDay, setDeathDay] = useState("");
-  const [view, setView] = useState("dashboard"); 
-  const [bg, setBg] = useState(
-    "https://images.alphacoders.com/128/1280491.jpg"
-  );
+  const [forgiveLeft, setForgiveLeft] = useState(6);
+  const [selectedDeathDay, setSelectedDeathDay] = useState(null);
+  const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
 
   const xpRequired = 500 * level;
 
@@ -26,271 +21,174 @@ export default function App() {
     }
   }, [xp]);
 
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const name = e.target.username.value.trim();
+    if (name) setUser(name);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setTasks([]);
+    setXp(0);
+    setLevel(1);
+    setXpFrozen(false);
+    setForgiveLeft(6);
+  };
+
   const addTask = (task) => {
-    if (task.name.toLowerCase() === "wake up") {
-      if (tasks.some((t) => t.date === task.date && t.name.toLowerCase() === "wake up")) {
-        alert("Wake Up task already exists for this day!");
-        return;
-      }
-    }
     setTasks([...tasks, task]);
   };
 
   const completeTask = (index) => {
     if (xpFrozen) return;
-    const newTasks = [...tasks];
-    const task = newTasks[index];
+    const task = tasks[index];
+    if (task.done) return;
 
     if (task.name.toLowerCase() === "wake up") {
       const now = new Date();
       const taskTime = new Date(`${task.date}T${task.time}`);
-      const diffMinutes = (now - taskTime) / 60000;
+      const diffMinutes = (now - taskTime) / 1000 / 60;
       if (diffMinutes > 10) {
         setXpFrozen(true);
         alert("Wake Up task late! XP frozen for today.");
-        return;
       }
     }
+
+    const newTasks = [...tasks];
     newTasks[index].done = true;
     setTasks(newTasks);
-    setXp((prev) => prev + 10);
+    if (!xpFrozen) setXp((prev) => prev + 10);
   };
 
   const forgiveTask = (index) => {
-    if (forgiveLeft <= 0) return alert("No forgives left!");
-    const newTasks = [...tasks];
-    if (newTasks[index].name.toLowerCase() === "wake up") {
-      setXpFrozen(true);
-      alert("Wake Up forgiven → XP frozen today!");
+    if (forgiveLeft <= 0) {
+      alert("No forgives left!");
+      return;
     }
+    const task = tasks[index];
+    if (task.name.toLowerCase() === "wake up") {
+      setXpFrozen(true);
+      alert("Wake Up task forgiven, XP frozen for today!");
+    }
+    const newTasks = [...tasks];
     newTasks[index].done = true;
     setTasks(newTasks);
     setForgiveLeft((prev) => prev - 1);
   };
 
-  const deleteTask = (index) => {
-    if (tasks[index].name.toLowerCase() === "wake up") {
-      alert("Cannot delete Wake Up task!");
-      return;
-    }
-    const newTasks = [...tasks];
-    newTasks.splice(index, 1);
-    setTasks(newTasks);
-  };
-
-  const filteredTasks = tasks.filter((t) => t.date === selectedDate);
+  const filteredTasks = tasks.filter((t) => t.date === today);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const form = e.target;
-    const name = form.name.value;
-    const date = form.date.value;
-    const time = form.time.value;
-    if (!name || !date || !time) return alert("Fill required fields!");
-    addTask({ name, date, time, duration: form.duration.value, done: false });
-    form.reset();
+    const name = e.target.name.value;
+    const date = e.target.date.value;
+    const time = e.target.time.value;
+    const duration = e.target.duration.value;
+    if (!name || !date || !time) return alert("Please fill all fields!");
+    addTask({ name, date, time, duration, done: false });
+    e.target.reset();
   };
 
-  const isDeathDay =
-    new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long" }) ===
-    deathDay;
-  const deathModeActive = isDeathDay || level >= 7; 
-
-  const completedTasks = tasks.filter((t) => t.done).length;
-  const totalTasks = tasks.length;
-
-  return (
-    <div
-      className="min-h-screen text-white"
-      style={{
-        backgroundImage: `url(${bg})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-      }}
-    >
-      {/* NAVBAR */}
-      <div className="sticky top-0 z-50 bg-black bg-opacity-70 flex justify-between px-3 py-2 shadow-lg">
-        <h1 className="text-lg md:text-2xl font-bold tracking-widest text-red-500">
-          Akatsuki Habit
-        </h1>
-        <div className="flex gap-2">
-          {["dashboard", "calendar", "reports"].map((item) => (
-            <button
-              key={item}
-              onClick={() => {
-                setView(item);
-                scrollToTop();
-              }}
-              className={`px-2 md:px-3 py-1 rounded-md text-xs md:text-sm transition ${
-                view === item
-                  ? "bg-red-500 text-white scale-105"
-                  : "bg-gray-800 hover:bg-red-500"
-              }`}
-            >
-              {item.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* MAIN VIEW */}
-      <div className="p-4 md:p-6">
-        {/* DASHBOARD */}
-        {view === "dashboard" && (
-          <div>
-            <p className="mb-4 text-sm md:text-lg">
-              Level: {level} | XP: {xp}/{xpRequired}{" "}
-              {xpFrozen && "(Frozen)"} | Forgives: {forgiveLeft}
-            </p>
-
-            <form
-              onSubmit={handleSubmit}
-              className="flex flex-wrap gap-2 bg-black bg-opacity-60 p-4 rounded-lg"
-            >
-              <input
-                type="text"
-                name="name"
-                placeholder="Task name"
-                className="px-2 py-1 rounded text-black"
-                required
-              />
-              <input
-                type="date"
-                name="date"
-                className="px-2 py-1 rounded text-black"
-                defaultValue={todayISO()}
-                required
-              />
-              <input
-                type="time"
-                name="time"
-                className="px-2 py-1 rounded text-black"
-                required
-              />
-              <input
-                type="number"
-                name="duration"
-                defaultValue={30}
-                min="5"
-                className="px-2 py-1 rounded text-black"
-              />
-              <button className="bg-red-500 px-3 py-1 text-xs md:text-sm rounded hover:bg-red-700">
-                Add
-              </button>
-            </form>
-
-            <div className="mt-4">
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="px-2 py-1 text-black rounded"
-              />
-              {deathModeActive && (
-                <p className="mt-2 text-red-400 font-bold">
-                  Death Mode Active! No Forgives.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-4 grid gap-4">
-              {filteredTasks.length > 0 ? (
-                filteredTasks.map((task, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-4 bg-black bg-opacity-70 rounded-lg shadow-lg transition transform hover:scale-105 ${
-                      task.done ? "border-green-400 border" : ""
-                    }`}
-                  >
-                    <h3 className="text-lg font-bold">{task.name}</h3>
-                    <p className="text-sm">
-                      {task.time} - {task.duration} min
-                    </p>
-                    {!task.done ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          onClick={() => completeTask(tasks.indexOf(task))}
-                          className="bg-green-500 px-2 py-1 rounded text-xs hover:bg-green-700"
-                        >
-                          Done
-                        </button>
-                        {!deathModeActive && (
-                          <button
-                            onClick={() => forgiveTask(tasks.indexOf(task))}
-                            className="bg-yellow-500 px-2 py-1 rounded text-xs hover:bg-yellow-700"
-                          >
-                            Forgive
-                          </button>
-                        )}
-                        <button
-                          onClick={() => deleteTask(tasks.indexOf(task))}
-                          className="bg-red-500 px-2 py-1 rounded text-xs hover:bg-red-700"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-green-400 font-bold">✔ Done</span>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p>No tasks for this day</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* CALENDAR */}
-        {view === "calendar" && (
-          <div className="bg-black bg-opacity-60 p-4 md:p-6 rounded-lg">
-            <h2 className="text-xl mb-4">Calendar View</h2>
-            {tasks.map((t, i) => (
-              <p key={i}>
-                {t.date} - {t.name} {t.done && "✔"}
-              </p>
-            ))}
-            <div className="mt-4">
-              <label className="mr-2">Select Death Mode Day: </label>
-              <select
-                value={deathDay}
-                onChange={(e) => setDeathDay(e.target.value)}
-                className="text-black px-2 py-1 rounded"
-              >
-                <option value="">None</option>
-                {[
-                  "Sunday",
-                  "Monday",
-                  "Tuesday",
-                  "Wednesday",
-                  "Thursday",
-                  "Friday",
-                  "Saturday",
-                ].map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
-
-        {/* REPORTS */}
-        {view === "reports" && (
-          <div className="bg-black bg-opacity-60 p-4 md:p-6 rounded-lg">
-            <h2 className="text-xl mb-4">Reports</h2>
-            <p>Total Tasks: {totalTasks}</p>
-            <p>Completed: {completedTasks}</p>
-            <p>
-              Completion Rate:{" "}
-              {totalTasks > 0
-                ? ((completedTasks / totalTasks) * 100).toFixed(1)
-                : 0}
-              %
-            </p>
-          </div>
-        )}
+  const navbar = (
+    <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
+      <div className="font-bold text-lg">No Mercy</div>
+      <div className="space-x-2 text-sm">
+        <button onClick={() => setPage("dashboard")} className="px-3 py-1 bg-red-600 rounded">Dashboard</button>
+        <button onClick={() => setPage("reports")} className="px-3 py-1 bg-blue-600 rounded">Reports</button>
+        <button onClick={() => setPage("deathmode")} className="px-3 py-1 bg-purple-600 rounded">Death Mode</button>
+        <button onClick={handleLogout} className="px-3 py-1 bg-gray-700 rounded">Logout</button>
       </div>
     </div>
   );
-                                   }
+
+  const dashboard = (
+    <div className="pt-16 p-4 text-white">
+      <h1 className="text-2xl mb-2">Welcome, {user}</h1>
+      <p>Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgives Left: {forgiveLeft}</p>
+
+      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-2">
+        <input type="text" name="name" placeholder="Task name" className="p-2 rounded text-black" required />
+        <input type="date" name="date" className="p-2 rounded text-black" required />
+        <input type="time" name="time" className="p-2 rounded text-black" required />
+        <input type="number" name="duration" min="5" defaultValue={30} className="p-2 rounded text-black" />
+        <button type="submit" className="bg-green-600 px-4 py-2 rounded">Add</button>
+      </form>
+
+      <h2 className="text-xl mt-4 mb-2">Today's Tasks</h2>
+      {filteredTasks.length > 0 ? (
+        <ul className="space-y-2">
+          {filteredTasks.map((task, idx) => (
+            <li key={idx} className="bg-white/20 rounded p-2 flex justify-between">
+              <div>
+                {task.name} - {task.time} ({task.duration} min)
+                {task.name.toLowerCase() === "wake up" && " 🌞"}
+              </div>
+              {!task.done ? (
+                <div className="space-x-2">
+                  <button onClick={() => completeTask(idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
+                  <button onClick={() => forgiveTask(idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
+                </div>
+              ) : (
+                <span className="text-green-400">✔</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p>No tasks for today</p>
+      )}
+    </div>
+  );
+
+  const reports = (
+    <div className="pt-16 p-4 text-white">
+      <h2 className="text-2xl mb-2">Reports</h2>
+      <p>Daily tasks done: {tasks.filter((t) => t.date === today && t.done).length}</p>
+      <p>Total tasks completed: {tasks.filter((t) => t.done).length}</p>
+    </div>
+  );
+
+  const deathMode = (
+    <div className="pt-16 p-4 text-white">
+      <h2 className="text-2xl mb-4">Death Mode</h2>
+      <p className="mb-2">Choose one day each week for strict mode (no forgives, all tasks must be done):</p>
+      <select
+        className="text-black p-2 rounded"
+        value={selectedDeathDay || ""}
+        onChange={(e) => setSelectedDeathDay(e.target.value)}
+      >
+        <option value="">Select Day</option>
+        <option value="Sunday">Sunday</option>
+        <option value="Monday">Monday</option>
+        <option value="Tuesday">Tuesday</option>
+        <option value="Wednesday">Wednesday</option>
+        <option value="Thursday">Thursday</option>
+        <option value="Friday">Friday</option>
+        <option value="Saturday">Saturday</option>
+      </select>
+      {selectedDeathDay && <p className="mt-2">Death Mode active on: {selectedDeathDay}</p>}
+    </div>
+  );
+
+  if (!user) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: `url('https://i.ibb.co/6XrD7bR/akatsuki-pain.jpg')` }}>
+        <form onSubmit={handleLogin} className="bg-white/20 p-6 rounded text-white">
+          <h1 className="text-xl mb-4">Login</h1>
+          <input type="text" name="username" placeholder="Enter your name" className="p-2 rounded text-black w-full mb-2" required />
+          <button type="submit" className="bg-blue-600 px-4 py-2 rounded w-full">Login</button>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-cover bg-center" style={{ backgroundImage: `url('https://i.ibb.co/6XrD7bR/akatsuki-pain.jpg')` }}>
+      {navbar}
+      {page === "dashboard" && dashboard}
+      {page === "reports" && reports}
+      {page === "deathmode" && deathMode}
+    </div>
+  );
+            }
