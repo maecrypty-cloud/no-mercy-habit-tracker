@@ -184,7 +184,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center" style={{ backgroundImage: `url('https://i.ibb.co/6XrD7bR/akatsuki-pain.jpg')` }}>
+    <div className="min-h-screen bg-cover bg-center" style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
       {navbar}
       {page === "dashboard" && dashboard}
       {page === "reports" && reports}
