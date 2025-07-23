@@ -15,8 +15,6 @@ export default function App() {
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
-  const [editIndex, setEditIndex] = useState(null);
-  const [editTask, setEditTask] = useState({ name: "", time: "", duration: "" });
 
   function getWeekNumber(date) {
     const firstDay = new Date(date.getFullYear(), 0, 1);
@@ -39,7 +37,7 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
-  // Reset at midnight & unlock death days next week
+  // Reset midnight & unlock both Death Days next week separately
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -79,28 +77,6 @@ export default function App() {
   };
 
   const addTask = (task) => setTasks([...tasks, task]);
-
-  const deleteTask = (index) => {
-    const newTasks = [...tasks];
-    newTasks.splice(index, 1);
-    setTasks(newTasks);
-  };
-
-  const startEdit = (index) => {
-    setEditIndex(index);
-    setEditTask({
-      name: tasks[index].name,
-      time: tasks[index].time,
-      duration: tasks[index].duration
-    });
-  };
-
-  const saveEdit = (index) => {
-    const newTasks = [...tasks];
-    newTasks[index] = { ...newTasks[index], ...editTask };
-    setTasks(newTasks);
-    setEditIndex(null);
-  };
 
   const completeTask = (index) => {
     if (xpFrozen || missedOnStrictDay) return;
@@ -256,27 +232,14 @@ export default function App() {
       {filteredTasks.length > 0 ? (
         <ul className="space-y-2">
           {filteredTasks.map((task, idx) => (
-            <li key={idx} className="bg-white/20 rounded p-2 flex justify-between items-center">
-              {editIndex === idx ? (
-                <div className="flex gap-2">
-                  <input value={editTask.name} onChange={(e) => setEditTask({ ...editTask, name: e.target.value })} className="p-1 rounded text-black"/>
-                  <input value={editTask.time} onChange={(e) => setEditTask({ ...editTask, time: e.target.value })} className="p-1 rounded text-black"/>
-                  <input value={editTask.duration} onChange={(e) => setEditTask({ ...editTask, duration: e.target.value })} type="number" className="p-1 rounded text-black"/>
-                  <button onClick={() => saveEdit(idx)} className="bg-blue-500 px-2 rounded">Save</button>
+            <li key={idx} className="bg-white/20 rounded p-2 flex justify-between">
+              <div>{task.name} - {task.time} ({task.duration} min) {task.name.toLowerCase() === "wake up" && "🌞"}</div>
+              {!task.done ? (
+                <div className="space-x-2">
+                  <button onClick={() => completeTask(idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
+                  <button onClick={() => forgiveTask(idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
                 </div>
-              ) : (
-                <>
-                  <div>{task.name} - {task.time} ({task.duration} min) {task.name.toLowerCase() === "wake up" && "🌞"}</div>
-                  {!task.done ? (
-                    <div className="space-x-2">
-                      <button onClick={() => completeTask(idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
-                      <button onClick={() => forgiveTask(idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
-                      <button onClick={() => startEdit(idx)} className="bg-blue-500 px-2 py-1 rounded">Edit</button>
-                      <button onClick={() => deleteTask(idx)} className="bg-red-500 px-2 py-1 rounded">Delete</button>
-                    </div>
-                  ) : <span className="text-green-400">✔</span>}
-                </>
-              )}
+              ) : <span className="text-green-400">✔</span>}
             </li>
           ))}
         </ul>
@@ -313,4 +276,4 @@ export default function App() {
       {page === "deathmode" && deathMode}
     </div>
   );
-         }
+    }
