@@ -1,78 +1,87 @@
 import React, { useState, useEffect } from "react";
 
-export default function App() {
-  const [tasks, setTasks] = useState(() => JSON.parse(localStorage.getItem("tasks")) || []);
-  const [xp, setXp] = useState(() => parseInt(localStorage.getItem("xp")) || 0);
-  const [level, setLevel] = useState(() => parseInt(localStorage.getItem("level")) || 1);
-  const [forgiveLeft, setForgiveLeft] = useState(() => parseInt(localStorage.getItem("forgiveLeft")) || 6);
-  const [xpFrozen, setXpFrozen] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
-  const [deathDay, setDeathDay] = useState(() => localStorage.getItem("deathDay") || "");
-  const [view, setView] = useState("dashboard");
+// ----- Utility -----
+const todayISO = () => new Date().toISOString().split("T")[0];
+const scrollToTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
+export default function App() {
+  const [tasks, setTasks] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
+  const [forgiveLeft, setForgiveLeft] = useState(6);
+  const [xpFrozen, setXpFrozen] = useState(false);
+  const [deathDay, setDeathDay] = useState("");
+  const [view, setView] = useState("dashboard"); // dashboard | calendar | reports
+  const [bg, setBg] = useState(
+    "https://images.alphacoders.com/128/1280491.jpg"
+  );
+
+  // XP required per level
   const xpRequired = 500 * level;
 
-  // Save to localStorage
-  useEffect(() => {
-    localStorage.setItem("tasks", JSON.stringify(tasks));
-    localStorage.setItem("xp", xp);
-    localStorage.setItem("level", level);
-    localStorage.setItem("forgiveLeft", forgiveLeft);
-    localStorage.setItem("deathDay", deathDay);
-  }, [tasks, xp, level, forgiveLeft, deathDay]);
-
-  // Level Up
+  // ---- Level up check ----
   useEffect(() => {
     if (xp >= xpRequired) {
-      setLevel(level + 1);
+      setLevel((prev) => prev + 1);
       setXp(0);
-      setForgiveLeft(Math.max(1, forgiveLeft - 1));
-      alert("Level up! You are now level " + (level + 1));
+      setForgiveLeft((prev) => Math.max(1, prev - 1));
     }
   }, [xp]);
 
+  // ---- Add Task ----
   const addTask = (task) => {
+    // Prevent duplicate wake up tasks
+    if (task.name.toLowerCase() === "wake up") {
+      if (tasks.some((t) => t.date === task.date && t.name.toLowerCase() === "wake up")) {
+        alert("Wake Up task already exists for this day!");
+        return;
+      }
+    }
     setTasks([...tasks, task]);
   };
 
+  // ---- Complete Task ----
   const completeTask = (index) => {
     if (xpFrozen) return;
 
     const newTasks = [...tasks];
-    if (newTasks[index].done) return;
+    const task = newTasks[index];
 
-    // Wake Up check
-    if (newTasks[index].name.toLowerCase() === "wake up") {
+    // Wake Up rule check
+    if (task.name.toLowerCase() === "wake up") {
       const now = new Date();
-      const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
+      const taskTime = new Date(`${task.date}T${task.time}`);
       const diffMinutes = (now - taskTime) / 1000 / 60;
       if (diffMinutes > 10) {
         setXpFrozen(true);
-        alert("Wake Up late! XP frozen for today.");
+        alert("Wake Up task late! XP frozen for today.");
         return;
       }
     }
 
     newTasks[index].done = true;
     setTasks(newTasks);
-    setXp(xp + 10);
+    setXp((prev) => prev + 10);
   };
 
+  // ---- Forgive ----
   const forgiveTask = (index) => {
     if (forgiveLeft <= 0) return alert("No forgives left!");
-    if (tasks[index].name.toLowerCase() === "wake up") {
-      setXpFrozen(true);
-      alert("Forgiving Wake Up freezes XP for today!");
-    }
     const newTasks = [...tasks];
+    if (newTasks[index].name.toLowerCase() === "wake up") {
+      setXpFrozen(true);
+      alert("Wake Up forgiven → XP frozen today!");
+    }
     newTasks[index].done = true;
     setTasks(newTasks);
-    setForgiveLeft(forgiveLeft - 1);
+    setForgiveLeft((prev) => prev - 1);
   };
 
+  // ---- Delete Task ----
   const deleteTask = (index) => {
     if (tasks[index].name.toLowerCase() === "wake up") {
-      alert("Wake Up task cannot be deleted!");
+      alert("Cannot delete Wake Up task!");
       return;
     }
     const newTasks = [...tasks];
@@ -80,104 +89,218 @@ export default function App() {
     setTasks(newTasks);
   };
 
+  // ---- Filter tasks by selectedDate ----
+  const filteredTasks = tasks.filter((t) => t.date === selectedDate);
+
+  // ---- Handle Add Task Form ----
   const handleSubmit = (e) => {
     e.preventDefault();
     const form = e.target;
     const name = form.name.value;
     const date = form.date.value;
     const time = form.time.value;
-    const duration = form.duration.value;
 
-    if (!name || !date || !time) return alert("All fields required!");
-    addTask({ name, date, time, duration, done: false });
+    if (!name || !date || !time) return alert("Fill required fields!");
+    addTask({ name, date, time, duration: form.duration.value, done: false });
     form.reset();
   };
 
-  const todayTasks = tasks.filter((t) => t.date === selectedDate);
+  // ---- Death Mode active days ----
+  const isDeathDay =
+    new Date(selectedDate).toLocaleDateString("en-US", { weekday: "long" }) ===
+    deathDay;
 
-  const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
-  const doubleDeath = level >= 7;
-  const deathDays = doubleDeath ? [deathDay, "Sunday"] : [deathDay];
+  const deathModeActive =
+    (level >= 7 && ["double", "death"].includes("double")) || isDeathDay;
 
-  useEffect(() => {
-    if (deathDays.includes(today)) {
-      const allDone = todayTasks.every((t) => t.done);
-      if (!allDone && todayTasks.length > 0) {
-        setXpFrozen(true);
-      }
-    }
-  }, [todayTasks, today, deathDay, doubleDeath]);
-
-  const logout = () => {
-    localStorage.clear();
-    window.location.reload();
-  };
+  // ---- Simple Reports ----
+  const completedTasks = tasks.filter((t) => t.done).length;
+  const totalTasks = tasks.length;
 
   return (
-    <div className="min-h-screen text-white" style={{ backgroundImage: "url('https://wallpaperaccess.com/full/1972345.jpg')", backgroundSize: "cover" }}>
-      {/* Navbar */}
-      <nav className="flex justify-between items-center px-4 py-2 bg-black/50">
-        <h1 className="text-2xl font-bold">Akatsuki Habit</h1>
+    <div
+      className="min-h-screen text-white"
+      style={{
+        background: `url(${bg}) center/cover no-repeat fixed`,
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      {/* NAVBAR */}
+      <div className="sticky top-0 z-50 bg-black bg-opacity-70 flex justify-between px-4 py-3 shadow-lg">
+        <h1 className="text-2xl font-bold tracking-widest text-red-500">
+          Akatsuki Habit
+        </h1>
         <div className="flex gap-4">
-          <button onClick={() => setView("dashboard")}>Dashboard</button>
-          <button onClick={() => setView("report")}>Reports</button>
-          <button onClick={() => setView("deathmode")}>Death Mode</button>
-          <button onClick={logout} className="bg-red-600 px-3 py-1 rounded">Logout</button>
+          {["dashboard", "calendar", "reports"].map((item) => (
+            <button
+              key={item}
+              onClick={() => {
+                setView(item);
+                scrollToTop();
+              }}
+              className={`px-4 py-2 rounded-md transition ${
+                view === item
+                  ? "bg-red-500 text-white scale-105"
+                  : "bg-gray-800 hover:bg-red-500"
+              }`}
+            >
+              {item.toUpperCase()}
+            </button>
+          ))}
         </div>
-      </nav>
+      </div>
 
-      {/* Dashboard */}
-      {view === "dashboard" && (
-        <div className="p-4">
-          <p>Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgives left: {forgiveLeft}</p>
-          <form onSubmit={handleSubmit} className="flex gap-2 flex-wrap my-2">
-            <input name="name" placeholder="Task name" className="p-1 text-black" required />
-            <input type="date" name="date" className="p-1 text-black" required />
-            <input type="time" name="time" className="p-1 text-black" required />
-            <input type="number" name="duration" defaultValue={30} className="p-1 text-black" />
-            <button type="submit" className="bg-green-600 px-3 py-1 rounded">Add</button>
-          </form>
-          <ul className="mt-4 space-y-2">
-            {todayTasks.length > 0 ? todayTasks.map((task, idx) => (
-              <li key={idx} className="bg-black/50 p-2 rounded">
-                {task.name} - {task.time} ({task.duration}min)
-                {!task.done ? (
-                  <>
-                    <button onClick={() => completeTask(idx)} className="ml-2 bg-blue-600 px-2">Done</button>
-                    <button onClick={() => forgiveTask(idx)} className="ml-2 bg-yellow-500 px-2">Forgive</button>
-                    <button onClick={() => deleteTask(idx)} className="ml-2 bg-red-500 px-2">Delete</button>
-                  </>
-                ) : <span className="ml-2">✔</span>}
-              </li>
-            )) : <p>No tasks for this day</p>}
-          </ul>
-        </div>
-      )}
+      {/* MAIN VIEW */}
+      <div className="p-6">
+        {/* DASHBOARD */}
+        {view === "dashboard" && (
+          <div>
+            <p className="mb-4 text-lg">
+              Level: {level} | XP: {xp}/{xpRequired}{" "}
+              {xpFrozen && "(Frozen)"} | Forgives: {forgiveLeft}
+            </p>
 
-      {/* Reports */}
-      {view === "report" && (
-        <div className="p-4">
-          <h2 className="text-xl">Weekly Report</h2>
-          <p>Total tasks: {tasks.length}</p>
-          <p>Completed: {tasks.filter((t) => t.done).length}</p>
-        </div>
-      )}
+            <form
+              onSubmit={handleSubmit}
+              className="flex flex-wrap gap-2 bg-black bg-opacity-60 p-4 rounded-lg"
+            >
+              <input
+                type="text"
+                name="name"
+                placeholder="Task name"
+                className="px-2 py-1 rounded text-black"
+                required
+              />
+              <input
+                type="date"
+                name="date"
+                className="px-2 py-1 rounded text-black"
+                defaultValue={todayISO()}
+                required
+              />
+              <input
+                type="time"
+                name="time"
+                className="px-2 py-1 rounded text-black"
+                required
+              />
+              <input
+                type="number"
+                name="duration"
+                defaultValue={30}
+                min="5"
+                className="px-2 py-1 rounded text-black"
+              />
+              <button className="bg-red-500 px-4 py-1 rounded hover:bg-red-700">
+                Add Task
+              </button>
+            </form>
 
-      {/* Death Mode */}
-      {view === "deathmode" && (
-        <div className="p-4">
-          <h2 className="text-xl">Set Your Death Day</h2>
-          <select value={deathDay} onChange={(e) => setDeathDay(e.target.value)} className="text-black p-1">
-            <option value="">--Select--</option>
-            <option value="Monday">Monday</option><option value="Tuesday">Tuesday</option>
-            <option value="Wednesday">Wednesday</option><option value="Thursday">Thursday</option>
-            <option value="Friday">Friday</option><option value="Saturday">Saturday</option>
-            <option value="Sunday">Sunday</option>
-          </select>
-          <p className="mt-2">Current Death Day: {deathDay || "None"}</p>
-          {doubleDeath && <p>Double Death Mode Active: Sunday is fixed!</p>}
-        </div>
-      )}
+            <div className="mt-4">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-2 py-1 text-black rounded"
+              />
+              {deathModeActive && (
+                <p className="mt-2 text-red-400 font-bold">
+                  Death Mode Active! No Forgives.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-4">
+              {filteredTasks.length > 0 ? (
+                filteredTasks.map((task, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-4 bg-black bg-opacity-70 rounded-lg shadow-lg transition transform hover:scale-105 ${
+                      task.done ? "border-green-400 border" : ""
+                    }`}
+                  >
+                    <h3 className="text-xl font-bold">{task.name}</h3>
+                    <p>
+                      {task.time} - {task.duration} min
+                    </p>
+                    {!task.done ? (
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => completeTask(tasks.indexOf(task))}
+                          className="bg-green-500 px-3 py-1 rounded hover:bg-green-700"
+                        >
+                          Done
+                        </button>
+                        {!deathModeActive && (
+                          <button
+                            onClick={() => forgiveTask(tasks.indexOf(task))}
+                            className="bg-yellow-500 px-3 py-1 rounded hover:bg-yellow-700"
+                          >
+                            Forgive
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteTask(tasks.indexOf(task))}
+                          className="bg-red-500 px-3 py-1 rounded hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-green-400 font-bold">✔ Done</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p>No tasks for this day</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* CALENDAR (simple) */}
+        {view === "calendar" && (
+          <div className="bg-black bg-opacity-60 p-6 rounded-lg">
+            <h2 className="text-2xl mb-4">Calendar View</h2>
+            {tasks.map((t, i) => (
+              <p key={i}>
+                {t.date} - {t.name} {t.done && "✔"}
+              </p>
+            ))}
+            <div className="mt-4">
+              <label>Select Death Mode Day: </label>
+              <select
+                value={deathDay}
+                onChange={(e) => setDeathDay(e.target.value)}
+                className="text-black px-2 py-1 rounded"
+              >
+                <option value="">None</option>
+                {[
+                  "Sunday",
+                  "Monday",
+                  "Tuesday",
+                  "Wednesday",
+                  "Thursday",
+                  "Friday",
+                  "Saturday",
+                ].map((d) => (
+                  <option key={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* REPORTS */}
+        {view === "reports" && (
+          <div className="bg-black bg-opacity-60 p-6 rounded-lg">
+            <h2 className="text-2xl mb-4">Reports</h2>
+            <p>Total Tasks: {totalTasks}</p>
+            <p>Completed: {completedTasks}</p>
+            <p>Completion Rate: {totalTasks > 0 ? ((completedTasks / totalTasks) * 100).toFixed(1) : 0}%</p>
+          </div>
+        )}
+      </div>
     </div>
   );
     }
