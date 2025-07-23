@@ -10,12 +10,20 @@ export default function App() {
   const [forgiveLeft, setForgiveLeft] = useState(6);
   const [selectedDeathDay, setSelectedDeathDay] = useState(null);
   const [selectedDeathDay2, setSelectedDeathDay2] = useState(null);
+  const [deathDayLocked1, setDeathDayLocked1] = useState(false);
+  const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
+  const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
+
+  function getWeekNumber(date) {
+    const firstDay = new Date(date.getFullYear(), 0, 1);
+    const days = Math.floor((date - firstDay) / (24 * 60 * 60 * 1000));
+    return Math.ceil((days + firstDay.getDay() + 1) / 7);
+  }
 
   const xpRequired = 500 * level;
 
-  // Level-up logic
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -24,25 +32,31 @@ export default function App() {
     }
   }, [xp]);
 
-  // Check if today is strict day
   const isDeathDayToday = () => {
     const todayDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
-  // Reset at midnight
+  // Reset at midnight & unlock death days next week
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
       const currentDate = now.toISOString().split("T")[0];
+      const currentWeek = getWeekNumber(now);
+
       if (currentDate !== today) {
         setToday(currentDate);
         setXpFrozen(false);
         setMissedOnStrictDay(false);
       }
-    }, 60000); // check every minute
+      if (currentWeek !== weekNumber) {
+        setWeekNumber(currentWeek);
+        setDeathDayLocked1(false);
+        setDeathDayLocked2(false);
+      }
+    }, 60000);
     return () => clearInterval(interval);
-  }, [today]);
+  }, [today, weekNumber]);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -58,6 +72,8 @@ export default function App() {
     setXpFrozen(false);
     setForgiveLeft(6);
     setMissedOnStrictDay(false);
+    setDeathDayLocked1(false);
+    setDeathDayLocked2(false);
   };
 
   const addTask = (task) => setTasks([...tasks, task]);
@@ -67,7 +83,6 @@ export default function App() {
     const task = tasks[index];
     if (task.done) return;
 
-    // Wake up late = XP freeze
     if (task.name.toLowerCase() === "wake up") {
       const now = new Date();
       const taskTime = new Date(`${task.date}T${task.time}`);
@@ -106,7 +121,6 @@ export default function App() {
     setForgiveLeft((prev) => prev - 1);
   };
 
-  // Check strict day rule violation
   useEffect(() => {
     if (isDeathDayToday()) {
       const todayTasks = tasks.filter((t) => t.date === today);
@@ -128,6 +142,24 @@ export default function App() {
     e.target.reset();
   };
 
+  const handleDeathDay1 = (e) => {
+    if (deathDayLocked1) {
+      alert("First Death Day already chosen. Change next week!");
+      return;
+    }
+    setSelectedDeathDay(e.target.value);
+    setDeathDayLocked1(true);
+  };
+
+  const handleDeathDay2 = (e) => {
+    if (deathDayLocked2) {
+      alert("Second Death Day already chosen. Change next week!");
+      return;
+    }
+    setSelectedDeathDay2(e.target.value);
+    setDeathDayLocked2(true);
+  };
+
   const navbar = (
     <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
       <div className="font-bold text-lg">No Mercy</div>
@@ -147,74 +179,30 @@ export default function App() {
     </div>
   );
 
-  const dashboard = (
-    <div className="pt-20 p-4 text-white">
-      <h1 className="text-2xl mb-2">Welcome, {user}</h1>
-      <p>Level: {level} | XP: {xp}/{xpRequired} {(xpFrozen || missedOnStrictDay) && "(Frozen)"} | Forgives Left: {forgiveLeft}</p>
-
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-2">
-        <input type="text" name="name" placeholder="Task name" className="p-2 rounded text-black" required />
-        <input type="date" name="date" className="p-2 rounded text-black" required />
-        <input type="time" name="time" className="p-2 rounded text-black" required />
-        <input type="number" name="duration" min="5" defaultValue={30} className="p-2 rounded text-black" />
-        <button type="submit" className="bg-green-600 px-4 py-2 rounded">Add</button>
-      </form>
-
-      <h2 className="text-xl mt-4 mb-2">Today's Tasks</h2>
-      {filteredTasks.length > 0 ? (
-        <ul className="space-y-2">
-          {filteredTasks.map((task, idx) => (
-            <li key={idx} className="bg-white/20 rounded p-2 flex justify-between">
-              <div>
-                {task.name} - {task.time} ({task.duration} min)
-                {task.name.toLowerCase() === "wake up" && " 🌞"}
-              </div>
-              {!task.done ? (
-                <div className="space-x-2">
-                  <button onClick={() => completeTask(idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
-                  <button onClick={() => forgiveTask(idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
-                </div>
-              ) : (
-                <span className="text-green-400">✔</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No tasks for today</p>
-      )}
-    </div>
-  );
-
-  const reports = (
-    <div className="pt-20 p-4 text-white">
-      <h2 className="text-2xl mb-2">Reports</h2>
-      <p>Daily tasks done: {tasks.filter((t) => t.date === today && t.done).length}</p>
-      <p>Total tasks completed: {tasks.filter((t) => t.done).length}</p>
-    </div>
-  );
-
   const deathMode = (
     <div className="pt-20 p-4 text-white">
       <h2 className="text-2xl mb-4">Death Mode</h2>
-      <p className="mb-2">Choose one day each week for strict mode (no forgives, all tasks must be done):</p>
+      <p className="mb-2">Choose one day each week for strict mode:</p>
       <select
         className="text-black p-2 rounded mb-4"
         value={selectedDeathDay || ""}
-        onChange={(e) => setSelectedDeathDay(e.target.value)}
+        onChange={handleDeathDay1}
+        disabled={deathDayLocked1}
       >
         <option value="">Select Day</option>
         {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day) => (
           <option key={day} value={day}>{day}</option>
         ))}
       </select>
+
       {level >= 7 && (
         <>
-          <p className="mb-2">Select a second strict day (Double Death Mode unlocked at level 7):</p>
+          <p className="mb-2">Choose second strict day (Unlocked at level 7):</p>
           <select
             className="text-black p-2 rounded"
             value={selectedDeathDay2 || ""}
-            onChange={(e) => setSelectedDeathDay2(e.target.value)}
+            onChange={handleDeathDay2}
+            disabled={deathDayLocked2}
           >
             <option value="">Select Day</option>
             {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day) => (
@@ -226,6 +214,46 @@ export default function App() {
       {(selectedDeathDay || selectedDeathDay2) && (
         <p className="mt-2">Death Mode active on: {selectedDeathDay}{selectedDeathDay2 ? ` & ${selectedDeathDay2}` : ""}</p>
       )}
+    </div>
+  );
+
+  // (dashboard and reports same as before)
+
+  const dashboard = (
+    <div className="pt-20 p-4 text-white">
+      <h1 className="text-2xl mb-2">Welcome, {user}</h1>
+      <p>Level: {level} | XP: {xp}/{xpRequired} {(xpFrozen || missedOnStrictDay) && "(Frozen)"} | Forgives Left: {forgiveLeft}</p>
+      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-2">
+        <input type="text" name="name" placeholder="Task name" className="p-2 rounded text-black" required />
+        <input type="date" name="date" className="p-2 rounded text-black" required />
+        <input type="time" name="time" className="p-2 rounded text-black" required />
+        <input type="number" name="duration" min="5" defaultValue={30} className="p-2 rounded text-black" />
+        <button type="submit" className="bg-green-600 px-4 py-2 rounded">Add</button>
+      </form>
+      <h2 className="text-xl mt-4 mb-2">Today's Tasks</h2>
+      {filteredTasks.length > 0 ? (
+        <ul className="space-y-2">
+          {filteredTasks.map((task, idx) => (
+            <li key={idx} className="bg-white/20 rounded p-2 flex justify-between">
+              <div>{task.name} - {task.time} ({task.duration} min) {task.name.toLowerCase() === "wake up" && "🌞"}</div>
+              {!task.done ? (
+                <div className="space-x-2">
+                  <button onClick={() => completeTask(idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
+                  <button onClick={() => forgiveTask(idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
+                </div>
+              ) : <span className="text-green-400">✔</span>}
+            </li>
+          ))}
+        </ul>
+      ) : <p>No tasks for today</p>}
+    </div>
+  );
+
+  const reports = (
+    <div className="pt-20 p-4 text-white">
+      <h2 className="text-2xl mb-2">Reports</h2>
+      <p>Daily tasks done: {tasks.filter((t) => t.date === today && t.done).length}</p>
+      <p>Total tasks completed: {tasks.filter((t) => t.done).length}</p>
     </div>
   );
 
@@ -250,4 +278,4 @@ export default function App() {
       {page === "deathmode" && deathMode}
     </div>
   );
-    }
+      }
