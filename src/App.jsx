@@ -1,101 +1,123 @@
-import { useState } from "react";
-import WakeUpTask from "./components/WakeUpTask";
+import React, { useState, useEffect } from "react";
+import Calendar from "react-calendar";
+import "react-calendar/dist/Calendar.css";
 
 export default function App() {
-  const [level, setLevel] = useState(1);
+  const [tasks, setTasks] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [xp, setXp] = useState(0);
-  const [forgives, setForgives] = useState(6);
-  const [habits, setHabits] = useState([]);
+  const [level, setLevel] = useState(1);
+  const [forgiveLeft, setForgiveLeft] = useState(6);
+  const [xpFrozen, setXpFrozen] = useState(false);
 
-  const handleWakeUpComplete = () => {
+  // XP required per level = 500 * current level
+  const xpRequired = 500 * level;
+
+  // Level up check
+  useEffect(() => {
+    if (xp >= xpRequired) {
+      setLevel((prev) => prev + 1);
+      setXp(0);
+      setForgiveLeft((prev) => Math.max(1, prev - 1)); // Forgive reduce per level
+    }
+  }, [xp]);
+
+  const addTask = (task) => {
+    setTasks([...tasks, task]);
+  };
+
+  const completeTask = (index) => {
+    if (xpFrozen) return;
+    const newTasks = [...tasks];
+    newTasks[index].done = true;
+    setTasks(newTasks);
+
+    // WakeUp special check
+    if (newTasks[index].isWakeUp) {
+      const now = new Date();
+      const taskTime = new Date(`${newTasks[index].date}T${newTasks[index].time}`);
+      const diffMinutes = (now - taskTime) / 1000 / 60;
+      if (diffMinutes > 10) {
+        setXpFrozen(true);
+        alert("WakeUp task late! XP frozen for today.");
+        return;
+      }
+    }
+
     setXp((prev) => prev + 10);
   };
 
-  const addHabit = (name) => {
-    if (!name) return;
-    setHabits((prev) => [...prev, { name, done: false }]);
+  const forgiveTask = (index) => {
+    if (forgiveLeft <= 0) {
+      alert("No forgives left!");
+      return;
+    }
+    const newTasks = [...tasks];
+    newTasks[index].done = true;
+    setTasks(newTasks);
+    setForgiveLeft((prev) => prev - 1);
   };
 
-  const completeHabit = (index) => {
-    setHabits((prev) =>
-      prev.map((h, i) => (i === index ? { ...h, done: true } : h))
-    );
-    setXp((prev) => prev + 5);
+  const filteredTasks = tasks.filter(
+    (t) => t.date === selectedDate.toISOString().split("T")[0]
+  );
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const name = form.name.value;
+    const date = form.date.value;
+    const time = form.time.value;
+    const duration = form.duration.value;
+    const isWakeUp = form.isWakeUp.checked;
+
+    if (!name || !date || !time) return alert("Please fill required fields!");
+
+    addTask({ name, date, time, duration, isWakeUp, done: false });
+    form.reset();
   };
 
   return (
-    <div style={{ fontFamily: "cursive", padding: "1rem" }}>
+    <div style={{ padding: "20px", fontFamily: "cursive" }}>
       <h1>No Mercy Habit Tracker</h1>
+      <p>Level: {level} | XP: {xp}/{xpRequired} {xpFrozen && "(Frozen)"} | Forgive left: {forgiveLeft}</p>
 
-      <WakeUpTask onComplete={handleWakeUpComplete} />
+      <form onSubmit={handleSubmit} style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <input type="text" name="name" placeholder="Task name" required />
+        <input type="date" name="date" required />
+        <input type="time" name="time" required />
+        <input type="number" name="duration" min="5" defaultValue={30} />
+        <label>
+          <input type="checkbox" name="isWakeUp" /> WakeUp Task
+        </label>
+        <button type="submit">Add Task</button>
+      </form>
 
-      <div style={{ background: "#fff3c4", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
-        <h3>Level: {level}</h3>
-        <p>XP: {xp}</p>
+      <div style={{ marginTop: "20px" }}>
+        <Calendar value={selectedDate} onChange={setSelectedDate} />
       </div>
 
-      <div style={{ background: "#f3e8ff", padding: "1rem", borderRadius: "8px", marginTop: "1rem" }}>
-        <p>Forgives left: {forgives}</p>
-        <button
-          onClick={() => setForgives((f) => (f > 0 ? f - 1 : 0))}
-          style={{
-            background: "#a855f7",
-            color: "#fff",
-            padding: "0.5rem 1rem",
-            borderRadius: "4px",
-            border: "none",
-          }}
-        >
-          Use Forgive
-        </button>
-      </div>
-
-      <div style={{ marginTop: "1rem" }}>
-        <input
-          type="text"
-          placeholder="New Habit"
-          id="habitInput"
-          style={{ padding: "0.5rem", width: "70%" }}
-        />
-        <button
-          onClick={() => {
-            const input = document.getElementById("habitInput");
-            addHabit(input.value);
-            input.value = "";
-          }}
-          style={{
-            background: "#3b82f6",
-            color: "#fff",
-            padding: "0.5rem 1rem",
-            border: "none",
-            marginLeft: "5px",
-          }}
-        >
-          Add
-        </button>
-      </div>
-
+      <h2>Tasks for {selectedDate.toDateString()}</h2>
       <ul>
-        {habits.map((habit, index) => (
-          <li key={index} style={{ margin: "5px 0" }}>
-            {habit.name}{" "}
-            <button
-              onClick={() => completeHabit(index)}
-              disabled={habit.done}
-              style={{
-                background: habit.done ? "#ccc" : "#22c55e",
-                color: "#fff",
-                border: "none",
-                padding: "0.2rem 0.5rem",
-              }}
-            >
-              Done
-            </button>
-          </li>
-        ))}
+        {filteredTasks.length > 0 ? (
+          filteredTasks.map((task, idx) => (
+            <li key={idx}>
+              {task.name} - {task.time} ({task.duration} min)
+              {task.isWakeUp && " 🌞"}
+              {!task.done ? (
+                <>
+                  <button onClick={() => completeTask(idx)}>Done</button>
+                  <button onClick={() => forgiveTask(idx)}>Forgive</button>
+                </>
+              ) : (
+                <span> ✔</span>
+              )}
+            </li>
+          ))
+        ) : (
+          <p>No tasks for this date</p>
+        )}
       </ul>
-
-      <p style={{ marginTop: "1rem" }}>Analytics Coming soon...</p>
     </div>
   );
-}
+      }
