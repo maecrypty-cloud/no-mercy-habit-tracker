@@ -1,3 +1,11 @@
+export default function App() {
+  try {
+    return <MainApp />; // actual app logic alag component me
+  } catch (e) {
+    console.error("Render error: ", e);
+    return <div className="text-white bg-black h-screen flex justify-center items-center">Error Occurred!</div>;
+  }
+}
 // App.jsx
 import React, { useState, useEffect } from "react";
 import { auth, db, googleProvider } from "./firebase.config";
