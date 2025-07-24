@@ -1,19 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { auth, db, googleProvider } from "./firebaseConfig";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-} from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState("dashboard");
+  const [page, setPage] = useState("login");
   const [tasks, setTasks] = useState({});
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
@@ -38,6 +31,11 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser || null);
+      if (currentUser) {
+        setPage("dashboard");   // auto redirect to dashboard on login
+      } else {
+        setPage("login");       // redirect to login page on logout
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -46,16 +44,13 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
-      console.error("Login Error:", error);
+      console.error(error);
     }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      // Reset all states after logout
-      setUser(null);
-      setPage("dashboard");
       setTasks({});
       setXp(0);
       setLevel(1);
@@ -64,8 +59,7 @@ export default function App() {
       setMissedOnStrictDay(false);
       setDeathDayLocked1(false);
       setDeathDayLocked2(false);
-      setSelectedDeathDay(null);
-      setSelectedDeathDay2(null);
+      setPage("login");   // force redirect after logout
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -73,19 +67,14 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const userRef = doc(db, "users", user.uid);
-      getDoc(userRef).then((docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
+      const userRef = db.collection("users").doc(user.uid);
+      userRef.get().then((doc) => {
+        if (doc.exists) {
+          const data = doc.data();
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          setDoc(userRef, {
-            name: user.displayName,
-            email: user.email,
-            xp: 0,
-            level: 1,
-          });
+          userRef.set({ name: user.displayName, email: user.email, xp: 0, level: 1 });
         }
       });
     }
@@ -93,8 +82,7 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const userRef = doc(db, "users", user.uid);
-      updateDoc(userRef, { xp, level }).catch(console.error);
+      db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
@@ -202,6 +190,20 @@ export default function App() {
     e.target.reset();
   };
 
+  if (!user || page === "login") {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
+        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
+        <div className="bg-white/20 p-6 rounded text-white text-center">
+          <h1 className="text-xl mb-4">Login to No Mercy</h1>
+          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
+            Login with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const navbar = (
     <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
       <div className="font-bold text-lg">No Mercy</div>
@@ -222,20 +224,6 @@ export default function App() {
       {missedOnStrictDay && " (XP Locked - You missed a task!)"}
     </div>
   );
-
-  if (!user) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
-        <div className="bg-white/20 p-6 rounded text-white text-center">
-          <h1 className="text-xl mb-4">Login to No Mercy</h1>
-          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
-            Login with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-cover bg-center"
