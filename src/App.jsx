@@ -6,7 +6,7 @@ import Achievements from "./Achievements";
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [page, setPage] = useState("login");
+  const [page, setPage] = useState("dashboard");
   const [tasks, setTasks] = useState({});
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
@@ -28,43 +28,35 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
+  // --- AUTH LISTENER ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser || null);
-      if (currentUser) {
-        setPage("dashboard");   // auto redirect to dashboard on login
-      } else {
-        setPage("login");       // redirect to login page on logout
-      }
     });
     return () => unsubscribe();
   }, []);
 
+  // --- LOGIN ---
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error(error);
+      alert("Login failed: " + error.message);
     }
   };
 
+  // --- LOGOUT ---
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setTasks({});
-      setXp(0);
-      setLevel(1);
-      setXpFrozen(false);
-      setForgiveLeft(6);
-      setMissedOnStrictDay(false);
-      setDeathDayLocked1(false);
-      setDeathDayLocked2(false);
-      setPage("login");   // force redirect after logout
+      // No need to manually change page, state resets automatically
     } catch (error) {
       console.error("Logout error:", error);
     }
   };
 
+  // --- FETCH XP / LEVEL ---
   useEffect(() => {
     if (user) {
       const userRef = db.collection("users").doc(user.uid);
@@ -74,18 +66,25 @@ export default function App() {
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          userRef.set({ name: user.displayName, email: user.email, xp: 0, level: 1 });
+          userRef.set({
+            name: user.displayName,
+            email: user.email,
+            xp: 0,
+            level: 1,
+          });
         }
       });
     }
   }, [user]);
 
+  // --- UPDATE XP/LEVEL DB ---
   useEffect(() => {
     if (user) {
       db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
+  // --- LEVEL UP CHECK ---
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -94,6 +93,7 @@ export default function App() {
     }
   }, [xp]);
 
+  // --- STRICT MODE CHECK ---
   const isDeathDayToday = () => {
     const todayDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
@@ -119,6 +119,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [today, weekNumber]);
 
+  // --- TASKS ---
   const addTask = (task) => {
     setTasks((prev) => {
       const existing = prev[task.date] || [];
@@ -190,20 +191,6 @@ export default function App() {
     e.target.reset();
   };
 
-  if (!user || page === "login") {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
-        <div className="bg-white/20 p-6 rounded text-white text-center">
-          <h1 className="text-xl mb-4">Login to No Mercy</h1>
-          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
-            Login with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const navbar = (
     <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
       <div className="font-bold text-lg">No Mercy</div>
@@ -225,6 +212,22 @@ export default function App() {
     </div>
   );
 
+  // --- LOGIN SCREEN ---
+  if (!user) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
+        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
+        <div className="bg-white/20 p-6 rounded text-white text-center">
+          <h1 className="text-xl mb-4">Login to No Mercy</h1>
+          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
+            Login with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // --- DASHBOARD + OTHER PAGES ---
   return (
     <div className="min-h-screen bg-cover bg-center"
       style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
@@ -304,4 +307,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-    }
+        }
