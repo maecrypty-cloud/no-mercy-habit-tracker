@@ -1,17 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { auth, provider, db } from "./firebaseConfig";
-import {
-  signInWithPopup,
-  signOut
-} from "firebase/auth";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
+
+// Firebase CDN global objects (make sure you included firebase-app, firebase-auth, firebase-firestore in index.html)
+const auth = firebase.auth();
+const provider = new firebase.auth.GoogleAuthProvider();
+const db = firebase.firestore();
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -37,18 +31,16 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
-  // --- Google Login (Modular) ---
   const handleGoogleLogin = async () => {
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result = await auth.signInWithPopup(provider);
       const loggedUser = result.user;
       setUser(loggedUser);
 
-      // Firestore user fetch
-      const userRef = doc(db, "users", loggedUser.uid);
-      const userDoc = await getDoc(userRef);
-      if (!userDoc.exists()) {
-        await setDoc(userRef, {
+      const userRef = db.collection("users").doc(loggedUser.uid);
+      const userDoc = await userRef.get();
+      if (!userDoc.exists) {
+        await userRef.set({
           name: loggedUser.displayName,
           email: loggedUser.email,
           xp: 0,
@@ -65,7 +57,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
+    await auth.signOut();
     setUser(null);
     setTasks({});
     setXp(0);
@@ -77,11 +69,10 @@ export default function App() {
     setDeathDayLocked2(false);
   };
 
-  // XP aur Level update hone par Firestore update
   useEffect(() => {
     if (user) {
-      const userRef = doc(db, "users", user.uid);
-      updateDoc(userRef, { xp, level }).catch(console.error);
+      const userRef = db.collection("users").doc(user.uid);
+      userRef.update({ xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
@@ -326,4 +317,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-            }
+    }
