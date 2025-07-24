@@ -28,13 +28,41 @@ export default function App() {
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
   const xpRequired = 500 * level;
 
-  // Auth state listener (Reset only after logout)
+  // --- Listen Auth ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        // Load data from Firestore
+        const userRef = doc(db, "users", currentUser.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          setXp(data.xp ?? 0);
+          setLevel(data.level ?? 1);
+          setForgiveLeft(data.forgiveLeft ?? 6);
+          setTasks(data.tasks ?? {});
+          setSelectedDeathDay(data.selectedDeathDay ?? null);
+          setSelectedDeathDay2(data.selectedDeathDay2 ?? null);
+          setDeathDayLocked1(data.deathDayLocked1 ?? false);
+          setDeathDayLocked2(data.deathDayLocked2 ?? false);
+        } else {
+          await setDoc(userRef, {
+            name: currentUser.displayName,
+            email: currentUser.email,
+            xp: 0,
+            level: 1,
+            forgiveLeft: 6,
+            tasks: {},
+            selectedDeathDay: null,
+            selectedDeathDay2: null,
+            deathDayLocked1: false,
+            deathDayLocked2: false
+          });
+        }
       } else {
         setUser(null);
+        // Reset only after logout
         setTasks({});
         setXp(0);
         setLevel(1);
@@ -43,6 +71,8 @@ export default function App() {
         setMissedOnStrictDay(false);
         setDeathDayLocked1(false);
         setDeathDayLocked2(false);
+        setSelectedDeathDay(null);
+        setSelectedDeathDay2(null);
         setPage("dashboard");
       }
     });
@@ -59,6 +89,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    // Reset after logout
     setTasks({});
     setXp(0);
     setLevel(1);
@@ -67,37 +98,27 @@ export default function App() {
     setMissedOnStrictDay(false);
     setDeathDayLocked1(false);
     setDeathDayLocked2(false);
+    setSelectedDeathDay(null);
+    setSelectedDeathDay2(null);
     setPage("dashboard");
   };
 
-  // Load XP & Level from Firestore after login
+  // --- Persist XP, Level, Forgives, Tasks ---
   useEffect(() => {
     if (user) {
       const userRef = doc(db, "users", user.uid);
-      getDoc(userRef).then((docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setXp(data.xp || 0);
-          setLevel(data.level || 1);
-        } else {
-          setDoc(userRef, {
-            name: user.displayName,
-            email: user.email,
-            xp: 0,
-            level: 1,
-          });
-        }
-      });
+      updateDoc(userRef, {
+        xp,
+        level,
+        forgiveLeft,
+        tasks,
+        selectedDeathDay,
+        selectedDeathDay2,
+        deathDayLocked1,
+        deathDayLocked2
+      }).catch(console.error);
     }
-  }, [user]);
-
-  // Save XP & Level to Firestore whenever they change
-  useEffect(() => {
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      updateDoc(userRef, { xp, level }).catch(console.error);
-    }
-  }, [xp, level, user]);
+  }, [xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, deathDayLocked1, deathDayLocked2, user]);
 
   useEffect(() => {
     if (xp >= xpRequired) {
@@ -112,7 +133,6 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
-  // Reset day/week-specific states
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -319,4 +339,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-        }
+  }
