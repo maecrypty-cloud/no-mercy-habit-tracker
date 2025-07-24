@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from "react";
+import { auth, provider, db } from "./firebaseConfig";
+import { signInWithPopup, signOut } from "firebase/auth";
+import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
+import Leaderboard from "./Leaderboard";
+import Achievements from "./Achievements";
 
 export default function App() {
-  const [user, setUser] = useState(() => localStorage.getItem("user") || null);
+  const [user, setUser] = useState(null);
   const [page, setPage] = useState("dashboard");
-  const [tasks, setTasks] = useState(() => {
-    const storedTasks = localStorage.getItem("tasks");
-    return storedTasks ? JSON.parse(storedTasks) : {};
-  });
-  const [xp, setXp] = useState(() => Number(localStorage.getItem("xp")) || 0);
-  const [level, setLevel] = useState(() => Number(localStorage.getItem("level")) || 1);
+  const [tasks, setTasks] = useState({});
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
   const [xpFrozen, setXpFrozen] = useState(false);
-  const [forgiveLeft, setForgiveLeft] = useState(
-    () => Number(localStorage.getItem("forgiveLeft")) || 6
-  );
-  const [selectedDeathDay, setSelectedDeathDay] = useState(localStorage.getItem("selectedDeathDay") || null);
-  const [selectedDeathDay2, setSelectedDeathDay2] = useState(localStorage.getItem("selectedDeathDay2") || null);
+  const [forgiveLeft, setForgiveLeft] = useState(6);
+  const [selectedDeathDay, setSelectedDeathDay] = useState(null);
+  const [selectedDeathDay2, setSelectedDeathDay2] = useState(null);
   const [deathDayLocked1, setDeathDayLocked1] = useState(false);
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
@@ -29,14 +29,53 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
-  // === LocalStorage Sync ===
-  useEffect(() => localStorage.setItem("user", user || ""), [user]);
-  useEffect(() => localStorage.setItem("tasks", JSON.stringify(tasks)), [tasks]);
-  useEffect(() => localStorage.setItem("xp", xp), [xp]);
-  useEffect(() => localStorage.setItem("level", level), [level]);
-  useEffect(() => localStorage.setItem("forgiveLeft", forgiveLeft), [forgiveLeft]);
-  useEffect(() => localStorage.setItem("selectedDeathDay", selectedDeathDay || ""), [selectedDeathDay]);
-  useEffect(() => localStorage.setItem("selectedDeathDay2", selectedDeathDay2 || ""), [selectedDeathDay2]);
+  // --- Google Login ---
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const loggedUser = result.user;
+      setUser(loggedUser);
+
+      // Firestore me user store karna
+      const userRef = doc(db, "users", loggedUser.uid);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
+          name: loggedUser.displayName,
+          email: loggedUser.email,
+          xp: 0,
+          level: 1
+        });
+      } else {
+        const data = userDoc.data();
+        setXp(data.xp || 0);
+        setLevel(data.level || 1);
+      }
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    setUser(null);
+    setTasks({});
+    setXp(0);
+    setLevel(1);
+    setXpFrozen(false);
+    setForgiveLeft(6);
+    setMissedOnStrictDay(false);
+    setDeathDayLocked1(false);
+    setDeathDayLocked2(false);
+  };
+
+  // XP aur Level update hone par Firestore update
+  useEffect(() => {
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      updateDoc(userRef, { xp, level }).catch(console.error);
+    }
+  }, [xp, level, user]);
 
   useEffect(() => {
     if (xp >= xpRequired) {
@@ -70,25 +109,6 @@ export default function App() {
     }, 60000);
     return () => clearInterval(interval);
   }, [today, weekNumber]);
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    const name = e.target.username.value.trim();
-    if (name) setUser(name);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    setTasks({});
-    setXp(0);
-    setLevel(1);
-    setXpFrozen(false);
-    setForgiveLeft(6);
-    setMissedOnStrictDay(false);
-    setDeathDayLocked1(false);
-    setDeathDayLocked2(false);
-    localStorage.clear();
-  };
 
   const addTask = (task) => {
     setTasks((prev) => {
@@ -186,6 +206,8 @@ export default function App() {
         <button onClick={() => setPage("dashboard")} className="px-3 py-1 bg-red-600 rounded">Dashboard</button>
         <button onClick={() => setPage("reports")} className="px-3 py-1 bg-blue-600 rounded">Reports</button>
         <button onClick={() => setPage("deathmode")} className="px-3 py-1 bg-purple-600 rounded">Death Mode</button>
+        <button onClick={() => setPage("leaderboard")} className="px-3 py-1 bg-yellow-600 rounded">Leaderboard</button>
+        <button onClick={() => setPage("achievements")} className="px-3 py-1 bg-green-600 rounded">Achievements</button>
         <button onClick={handleLogout} className="px-3 py-1 bg-gray-700 rounded">Logout</button>
       </div>
     </div>
@@ -238,7 +260,7 @@ export default function App() {
 
   const dashboard = (
     <div className="pt-20 p-4 text-white">
-      <h1 className="text-2xl mb-2">Welcome, {user}</h1>
+      <h1 className="text-2xl mb-2">Welcome, {user?.displayName}</h1>
       <p>Level: {level} | XP: {xp}/{xpRequired} {(xpFrozen || missedOnStrictDay) && "(Frozen)"} | Forgives Left: {forgiveLeft}</p>
       <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-2">
         <input type="text" name="name" placeholder="Task name" className="p-2 rounded text-black" required />
@@ -277,11 +299,10 @@ export default function App() {
   if (!user) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
-        <form onSubmit={handleLogin} className="bg-white/20 p-6 rounded text-white">
-          <h1 className="text-xl mb-4">Login</h1>
-          <input type="text" name="username" placeholder="Enter your name" className="p-2 rounded text-black w-full mb-2" required />
-          <button type="submit" className="bg-blue-600 px-4 py-2 rounded w-full">Login</button>
-        </form>
+        <div className="bg-white/20 p-6 rounded text-white text-center">
+          <h1 className="text-xl mb-4">Login to No Mercy</h1>
+          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">Login with Google</button>
+        </div>
       </div>
     );
   }
@@ -293,6 +314,8 @@ export default function App() {
       {page === "dashboard" && dashboard}
       {page === "reports" && reports}
       {page === "deathmode" && deathMode}
+      {page === "leaderboard" && <Leaderboard />}
+      {page === "achievements" && <Achievements />}
     </div>
   );
-                                 }
+        }
