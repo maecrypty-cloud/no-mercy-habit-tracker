@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider } from "./firebaseConfig"; // Fixed import
 import { 
   signInWithPopup, 
   signOut, 
@@ -28,14 +28,13 @@ export default function App() {
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
-  const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
 
   function getWeekNumber(date) {
     const firstDay = new Date(date.getFullYear(), 0, 1);
     const days = Math.floor((date - firstDay) / (24 * 60 * 60 * 1000));
     return Math.ceil((days + firstDay.getDay() + 1) / 7);
   }
-
+  const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
   const xpRequired = 500 * level;
 
   useEffect(() => {
@@ -308,4 +307,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-        }
+            }
