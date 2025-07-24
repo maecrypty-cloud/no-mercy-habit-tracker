@@ -1,20 +1,21 @@
-// firebaseConfig.js (CDN version)
+// firebase.js
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
-// Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDrqLVyX7d3_fb9CPjcvs3srh8hRA7d1OI",
-  authDomain: "no-mercy-2e372.firebaseapp.com",
-  projectId: "no-mercy-2e372",
-  storageBucket: "no-mercy-2e372.appspot.com", // <- ye correct karo (.app hatao)
-  messagingSenderId: "363291533348",
-  appId: "1:363291533348:web:2deec586a5bc831b9678b1",
-  measurementId: "G-XD74PL8KXJ"
+  apiKey: "AIzaSyB3GgAgQvcuWElNsrZ0FaZSSYoPY0tnSTw",
+  authDomain: "no-mercy-28e0a.firebaseapp.com",
+  projectId: "no-mercy-28e0a",
+  storageBucket: "no-mercy-28e0a.firebasestorage.app",
+  messagingSenderId: "353208485106",
+  appId: "1:353208485106:web:bc33f4d201cbfd95f8fc6b",
+  measurementId: "G-DT0SXRFFGR"
 };
 
 // Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-
-// Firebase services
-const auth = firebase.auth();
-const provider = new firebase.auth.GoogleAuthProvider();
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const provider = new GoogleAuthProvider();
+export const db = getFirestore(app);
+export { signInWithPopup, signOut };
