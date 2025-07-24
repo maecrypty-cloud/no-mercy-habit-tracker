@@ -1,123 +1,69 @@
-import React, { useState, useEffect } from "react"; import { auth, db, provider } from "./firebaseConfig"; import { signInWithPopup, onAuthStateChanged, signOut, } from "firebase/auth"; import { doc, setDoc, getDoc, updateDoc, onSnapshot, } from "firebase/firestore"; import Navbar from "./Navbar"; import Leaderboard from "./Leaderboard"; import Achievements from "./Achievements"; import Report from "./Report";
+import React, { useEffect, useState } from "react"; import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth"; import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore"; import { db } from "./firebaseconfig"; import { motion } from "framer-motion"; import { Sun, Moon } from "lucide-react";
 
-const App = () => { const [page, setPage] = useState("dashboard"); const [user, setUser] = useState(null); const [tasks, setTasks] = useState({}); const [input, setInput] = useState(""); const [strictMode, setStrictMode] = useState(false); const [xp, setXp] = useState(0); const [level, setLevel] = useState(1); const [forgiveLeft, setForgiveLeft] = useState(1); const [xpFrozen, setXpFrozen] = useState(false); const [missedOnStrictDay, setMissedOnStrictDay] = useState(false); const [deathDayLocked1, setDeathDayLocked1] = useState(false); const [deathDayLocked2, setDeathDayLocked2] = useState(false);
+import Navbar from "./Navbar"; import Leaderboard from "./Leaderboard"; import Achievements from "./Achievements"; import Report from "./Report";
 
-const today = new Date().toISOString().split("T")[0];
+const App = () => { const [user, setUser] = useState(null); const [darkMode, setDarkMode] = useState(false); const [page, setPage] = useState("dashboard");
 
-useEffect(() => { onAuthStateChanged(auth, async (currentUser) => { setUser(currentUser); if (currentUser) { const docRef = doc(db, "users", currentUser.uid);
+const [tasks, setTasks] = useState({}); const [input, setInput] = useState(""); const [xp, setXp] = useState(0); const [level, setLevel] = useState(1); const [forgiveLeft, setForgiveLeft] = useState(3); const [xpFrozen, setXpFrozen] = useState(false); const [missedOnStrictDay, setMissedOnStrictDay] = useState(false); const [deathDayLocked1, setDeathDayLocked1] = useState(false); const [deathDayLocked2, setDeathDayLocked2] = useState(false);
 
-const syncUserData = async () => {
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setTasks(data.tasks || {});
-        setXp(data.xp || 0);
-        setLevel(data.level || 1);
-        setForgiveLeft(data.forgiveLeft ?? 1);
-        setXpFrozen(data.xpFrozen ?? false);
-        setMissedOnStrictDay(data.missedOnStrictDay ?? false);
-        setDeathDayLocked1(data.deathDayLocked1 ?? false);
-        setDeathDayLocked2(data.deathDayLocked2 ?? false);
-      } else {
-        await setDoc(docRef, {
-          name: currentUser.displayName,
-          email: currentUser.email,
-          xp: 0,
-          level: 1,
-          tasks: {},
-          forgiveLeft: 1,
-          xpFrozen: false,
-          missedOnStrictDay: false,
-          deathDayLocked1: false,
-          deathDayLocked2: false,
-        });
-      }
+const auth = getAuth(); const provider = new GoogleAuthProvider();
 
-      onSnapshot(docRef, (docSnap) => {
-        const data = docSnap.data();
-        setTasks(data.tasks || {});
-        setXp(data.xp || 0);
-        setLevel(data.level || 1);
-        setForgiveLeft(data.forgiveLeft ?? 1);
-        setXpFrozen(data.xpFrozen ?? false);
-        setMissedOnStrictDay(data.missedOnStrictDay ?? false);
-        setDeathDayLocked1(data.deathDayLocked1 ?? false);
-        setDeathDayLocked2(data.deathDayLocked2 ?? false);
-      });
-    };
+const signIn = async () => { try { await signInWithPopup(auth, provider); } catch (err) { alert("Error signing in: " + err.message); } };
 
-    syncUserData();
-  }
-});
+const saveData = async (uid, newData) => { try { await setDoc(doc(db, "users", uid), newData, { merge: true }); } catch (err) { console.error("Error saving to Firestore:", err); } };
 
-}, []);
+useEffect(() => { const unsubscribe = onAuthStateChanged(auth, async (u) => { if (u) { setUser(u); const ref = doc(db, "users", u.uid); const snap = await getDoc(ref); if (snap.exists()) { const data = snap.data(); setTasks(data.tasks || {}); setXp(data.xp || 0); setLevel(data.level || 1); setForgiveLeft(data.forgiveLeft ?? 3); setXpFrozen(data.xpFrozen ?? false); setMissedOnStrictDay(data.missedOnStrictDay ?? false); setDeathDayLocked1(data.deathDayLocked1 ?? false); setDeathDayLocked2(data.deathDayLocked2 ?? false); } else { await saveData(u.uid, { tasks: {}, xp: 0, level: 1, forgiveLeft: 3, xpFrozen: false, missedOnStrictDay: false, deathDayLocked1: false, deathDayLocked2: false, }); } onSnapshot(ref, (docSnap) => { const d = docSnap.data(); setTasks(d.tasks); setXp(d.xp); setLevel(d.level); setForgiveLeft(d.forgiveLeft); setXpFrozen(d.xpFrozen); setMissedOnStrictDay(d.missedOnStrictDay); setDeathDayLocked1(d.deathDayLocked1); setDeathDayLocked2(d.deathDayLocked2); }); } else { setUser(null); } }); return () => unsubscribe(); }, []);
 
-const syncToFirestore = async () => { if (!user) return; const docRef = doc(db, "users", user.uid); await updateDoc(docRef, { xp, level, tasks, forgiveLeft, xpFrozen, missedOnStrictDay, deathDayLocked1, deathDayLocked2, }); };
+const addTask = async () => { if (!input.trim() || !user) return; const newTasks = { ...tasks, [Date.now()]: { name: input, done: false } }; setInput(""); await saveData(user.uid, { tasks: newTasks }); };
 
-useEffect(() => { syncToFirestore(); }, [xp, level, tasks, forgiveLeft, xpFrozen, missedOnStrictDay, deathDayLocked1, deathDayLocked2]);
+const toggleDark = () => setDarkMode((prev) => !prev);
 
-const addTask = () => { const newTasks = { ...tasks, [today]: [...(tasks[today] || []), { text: input, done: false }], }; setTasks(newTasks); setInput(""); };
-
-const toggleTask = (index) => { const newTasks = { ...tasks }; newTasks[today][index].done = !newTasks[today][index].done; setTasks(newTasks); setXp(xp + (newTasks[today][index].done ? 10 : -10)); if (xp >= level * 100) setLevel(level + 1); };
-
-const handleSignIn = () => signInWithPopup(auth, provider); const handleSignOut = () => signOut(auth);
-
-return ( <div className="min-h-screen bg-gray-900 text-white p-4"> <Navbar setPage={setPage} handleSignOut={handleSignOut} user={user} />
+return ( <div className={darkMode ? "dark bg-gray-900 text-white min-h-screen" : "bg-white text-black min-h-screen"}> <Navbar setPage={setPage} darkMode={darkMode} toggleDark={toggleDark} />
 
 {!user ? (
-    <div className="flex flex-col items-center mt-20">
-      <h1 className="text-3xl mb-4">Sign in to continue</h1>
-      <button onClick={handleSignIn} className="bg-blue-500 px-6 py-2 rounded">Sign in with Google</button>
+    <div className="flex justify-center items-center h-screen">
+      <button onClick={signIn} className="px-6 py-3 bg-blue-500 text-white rounded-xl shadow-lg hover:bg-blue-600">Sign in with Google</button>
     </div>
   ) : (
-    <div className="mt-4">
+    <motion.div className="p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {page === "dashboard" && (
-        <div>
-          <div className="mb-4">
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Welcome, {user.displayName}</h2>
+            <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
+              <div className="bg-green-500 h-4 rounded-full" style={{ width: `${(xp % 100)}%` }}></div>
+            </div>
+            <span className="ml-2 text-sm">Level {level}</span>
+          </div>
+          <div className="flex gap-2">
             <input
-              type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="text-black px-2 py-1 rounded mr-2"
+              placeholder="Add new task"
+              className="flex-grow px-4 py-2 border rounded-lg dark:bg-gray-800"
             />
-            <button onClick={addTask} className="bg-green-500 px-4 py-1 rounded">Add</button>
+            <button onClick={addTask} className="bg-green-500 text-white px-4 py-2 rounded-lg">Add</button>
           </div>
-          <ul>
-            {(tasks[today] || []).map((task, i) => (
-              <li
-                key={i}
-                onClick={() => toggleTask(i)}
-                className={`cursor-pointer mb-2 ${task.done ? "line-through text-green-400" : ""}`}
-              >
-                {task.text}
-              </li>
+          <div className="grid gap-2">
+            {Object.entries(tasks).map(([key, task]) => (
+              <div key={key} className="flex justify-between bg-gray-100 dark:bg-gray-800 p-3 rounded-xl">
+                <span>{task.name}</span>
+              </div>
             ))}
-          </ul>
-          <div className="mt-4">
-            <h2>XP: {xp} | Level: {level}</h2>
-            <div className="w-full bg-gray-700 rounded-full h-4 mt-2">
-              <div className="bg-green-400 h-4 rounded-full" style={{ width: `${(xp % 100)}%` }}></div>
-            </div>
           </div>
         </div>
       )}
 
-      {page === "report" && (
-        <Report
-          tasks={tasks}
-          xp={xp}
-          level={level}
-          forgiveLeft={forgiveLeft}
-          xpFrozen={xpFrozen}
-          missedOnStrictDay={missedOnStrictDay}
-          deathDayLocked1={deathDayLocked1}
-          deathDayLocked2={deathDayLocked2}
-        />
-      )}
-
       {page === "leaderboard" && <Leaderboard />}
       {page === "achievements" && <Achievements />}
-    </div>
+      {page === "report" && (
+        <Report
+          xp={xp} level={level} forgiveLeft={forgiveLeft} xpFrozen={xpFrozen}
+          missedOnStrictDay={missedOnStrictDay} deathDayLocked1={deathDayLocked1} deathDayLocked2={deathDayLocked2}
+          tasks={tasks}
+        />
+      )}
+    </motion.div>
   )}
 </div>
 
@@ -125,4 +71,4 @@ return ( <div className="min-h-screen bg-gray-900 text-white p-4"> <Navbar setPa
 
 export default App;
 
-        
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
