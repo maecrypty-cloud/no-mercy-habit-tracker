@@ -1,19 +1,18 @@
-import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+// src/firebaseConfig.js
 
+// Firebase CDN se load ho chuka hai isliye window.firebase use karenge
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDrqLVyX7d3_fb9CPjcvs3srh8hRA7d1OI",
+  authDomain: "no-mercy-2e372.firebaseapp.com",
+  projectId: "no-mercy-2e372",
+  storageBucket: "no-mercy-2e372.appspot.com",
+  messagingSenderId: "363291533348",
+  appId: "1:363291533348:web:2deec586a5bc831b9678b1",
+  measurementId: "G-XD74PL8KXJ"
 };
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
-const db = getFirestore(app);
+firebase.initializeApp(firebaseConfig);
 
-export { auth, provider, db };
+export const auth = firebase.auth();
+export const provider = new firebase.auth.GoogleAuthProvider();
+export const db = firebase.firestore();
