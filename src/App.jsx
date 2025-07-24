@@ -1,4 +1,4 @@
-// Full-featured App.jsx import React, { useState, useEffect } fro "react"; import { motion } from "https://cdn.skypack.dev/framer-motion";
+// Full-featured App.jsx import React, { useState, useEffect } from "react"; import { motion } from "https://cdn.skypack.dev/framer-motion";
 
 // Firebase CDN setup import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-app.js"; import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore.js"; import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-auth.js";
 
