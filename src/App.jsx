@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { auth, provider, signInWithPopup, signOut, db } from "./firebase";
+import { auth, provider, signInWithPopup, signOut, db } from "./firebaseConfig";
 import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
@@ -35,8 +35,8 @@ export default function App() {
       setUser(loggedUser);
 
       const userRef = doc(db, "users", loggedUser.uid);
-      const userDoc = await getDoc(userRef);
-      if (!userDoc.exists()) {
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
         await setDoc(userRef, {
           name: loggedUser.displayName,
           email: loggedUser.email,
@@ -44,12 +44,13 @@ export default function App() {
           level: 1
         });
       } else {
-        const data = userDoc.data();
+        const data = userSnap.data();
         setXp(data.xp || 0);
         setLevel(data.level || 1);
       }
     } catch (error) {
       console.error(error);
+      alert("Login failed");
     }
   };
 
@@ -287,4 +288,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-      }
+            }
