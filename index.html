@@ -4,9 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>No Mercy Habit Tracker</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDrqLVyX7d3_fb9CPjcvs3srh8hRA7d1OI",
+    authDomain: "no-mercy-2e372.firebaseapp.com",
+    projectId: "no-mercy-2e372",
+    storageBucket: "no-mercy-2e372.firebasestorage.app",
+    messagingSenderId: "363291533348",
+    appId: "1:363291533348:web:2deec586a5bc831b9678b1",
+    measurementId: "G-XD74PL8KXJ"
+  };
+  firebase.initializeApp(firebaseConfig);
+  window.auth = firebase.auth();
+  window.db = firebase.firestore();
+  window.provider = new firebase.auth.GoogleAuthProvider();
+</script>
     </head>
   <body>
     <div id="root"></div>
