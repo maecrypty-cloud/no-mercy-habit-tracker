@@ -7,78 +7,71 @@ import Achievements from "./Achievements";
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true); // NEW
+  const [loading, setLoading] = useState(true);
+
   const [page, setPage] = useState("dashboard");
   const [tasks, setTasks] = useState({});
   const [xp, setXp] = useState(0);
   const [level, setLevel] = useState(1);
   const [xpFrozen, setXpFrozen] = useState(false);
   const [forgiveLeft, setForgiveLeft] = useState(6);
+
   const [selectedDeathDay, setSelectedDeathDay] = useState(null);
   const [selectedDeathDay2, setSelectedDeathDay2] = useState(null);
   const [deathDayLocked1, setDeathDayLocked1] = useState(false);
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
+
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
 
-  function getWeekNumber(date) {
+  const getWeekNumber = (date) => {
     const firstDay = new Date(date.getFullYear(), 0, 1);
     const days = Math.floor((date - firstDay) / (24 * 60 * 60 * 1000));
     return Math.ceil((days + firstDay.getDay() + 1) / 7);
-  }
+  };
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
   const xpRequired = 500 * level;
 
-  // -------------------- AUTH & INITIAL DATA LOAD --------------------
+  // --- Auth & Data Persistence ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+
         const userRef = doc(db, "users", currentUser.uid);
         const docSnap = await getDoc(userRef);
 
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setXp(data.xp ?? 0);
-          setLevel(data.level ?? 1);
+          setXp(data.xp || 0);
+          setLevel(data.level || 1);
           setForgiveLeft(data.forgiveLeft ?? 6);
-          setTasks(data.tasks ?? {});
-          setSelectedDeathDay(data.selectedDeathDay ?? null);
-          setSelectedDeathDay2(data.selectedDeathDay2 ?? null);
-          setDeathDayLocked1(data.deathDayLocked1 ?? false);
-          setDeathDayLocked2(data.deathDayLocked2 ?? false);
+          setTasks(data.tasks || {});
         } else {
-          await setDoc(userRef, {
-            name: currentUser.displayName,
-            email: currentUser.email,
-            xp: 0,
-            level: 1,
-            forgiveLeft: 6,
-            tasks: {},
-            selectedDeathDay: null,
-            selectedDeathDay2: null,
-            deathDayLocked1: false,
-            deathDayLocked2: false
-          });
+          await setDoc(userRef, { xp: 0, level: 1, forgiveLeft: 6, tasks: {} });
         }
       } else {
         setUser(null);
-        setTasks({});
         setXp(0);
         setLevel(1);
-        setXpFrozen(false);
         setForgiveLeft(6);
-        setMissedOnStrictDay(false);
-        setDeathDayLocked1(false);
-        setDeathDayLocked2(false);
-        setPage("dashboard");
+        setTasks({});
       }
-      setLoading(false); // IMPORTANT
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
 
+  // --- Sync XP & Level with Firestore ---
+  useEffect(() => {
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      updateDoc(userRef, { xp, level, forgiveLeft, tasks }).catch(() => {});
+    }
+  }, [xp, level, forgiveLeft, tasks, user]);
+
+  // --- Google Login ---
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
@@ -89,35 +82,14 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Local Reset after Logout
-    setTasks({});
+    setUser(null);
     setXp(0);
     setLevel(1);
-    setXpFrozen(false);
     setForgiveLeft(6);
-    setMissedOnStrictDay(false);
-    setDeathDayLocked1(false);
-    setDeathDayLocked2(false);
-    setPage("dashboard");
+    setTasks({});
   };
 
-  // -------------------- UPDATE FIRESTORE WHEN DATA CHANGES --------------------
-  useEffect(() => {
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      updateDoc(userRef, {
-        xp,
-        level,
-        forgiveLeft,
-        tasks,
-        selectedDeathDay,
-        selectedDeathDay2,
-        deathDayLocked1,
-        deathDayLocked2
-      }).catch(console.error);
-    }
-  }, [xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, deathDayLocked1, deathDayLocked2, user]);
-
+  // --- XP Level Up ---
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -131,6 +103,7 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
+  // --- Daily/Weekly Reset ---
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -151,6 +124,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [today, weekNumber]);
 
+  // --- Task Operations ---
   const addTask = (task) => {
     setTasks((prev) => {
       const existing = prev[task.date] || [];
@@ -221,7 +195,25 @@ export default function App() {
     e.target.reset();
   };
 
-  // -------------------- NAVBAR & UI --------------------
+  // --- UI ---
+  if (loading) {
+    return <div className="text-white flex h-screen items-center justify-center">Loading...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
+        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
+        <div className="bg-white/20 p-6 rounded text-white text-center">
+          <h1 className="text-xl mb-4">Login to No Mercy</h1>
+          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
+            Login with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const navbar = (
     <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
       <div className="font-bold text-lg">No Mercy</div>
@@ -242,24 +234,6 @@ export default function App() {
       {missedOnStrictDay && " (XP Locked - You missed a task!)"}
     </div>
   );
-
-  if (loading) {
-    return <div className="h-screen flex items-center justify-center text-white text-2xl">Loading...</div>;
-  }
-
-  if (!user) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
-        <div className="bg-white/20 p-6 rounded text-white text-center">
-          <h1 className="text-xl mb-4">Login to No Mercy</h1>
-          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
-            Login with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-cover bg-center"
@@ -342,4 +316,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-    }
+}
