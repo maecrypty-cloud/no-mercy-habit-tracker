@@ -1,86 +1,93 @@
-// Full-featured App.jsx import React, { useState, useEffect } from "react"; import { motion } from "https://cdn.skypack.dev/framer-motion";
+// App.jsx import React, { useState, useEffect } from "react"; import { initializeApp } from "firebase/app"; import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "firebase/auth"; import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
 
-// Firebase CDN setup import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-app.js"; import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore.js"; import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-auth.js";
+// Firebase Config const firebaseConfig = { apiKey: "AIzaSyB3GgAgQvcuWElNsrZ0FaZSSYoPY0tnSTw", authDomain: "no-mercy-28e0a.firebaseapp.com", projectId: "no-mercy-28e0a", storageBucket: "no-mercy-28e0a.firebasestorage.app", messagingSenderId: "353208485106", appId: "1:353208485106:web:bc33f4d201cbfd95f8fc6b", measurementId: "G-DT0SXRFFGR" }; const app = initializeApp(firebaseConfig); const auth = getAuth(app); const db = getFirestore(app);
 
-const firebaseConfig = { apiKey: "AIzaSyB3GgAgQvcuWElNsrZ0FaZSSYoPY0tnSTw", authDomain: "no-mercy-28e0a.firebaseapp.com", projectId: "no-mercy-28e0a", storageBucket: "no-mercy-28e0a.appspot.com", messagingSenderId: "353208485106", appId: "1:353208485106:web:bc33f4d201cbfd95f8fc6b", measurementId: "G-DT0SXRFFGR" };
+const App = () => { const [user, setUser] = useState(null); const [dark, setDark] = useState(false); const [xp, setXP] = useState(0); const [level, setLevel] = useState(1); const [tasks, setTasks] = useState({}); const [input, setInput] = useState(""); const [wakeUpTime, setWakeUpTime] = useState("06:00"); const [strictMode, setStrictMode] = useState(false); const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
 
-const app = initializeApp(firebaseConfig); const db = getFirestore(); const auth = getAuth(); const provider = new GoogleAuthProvider();
+useEffect(() => { onAuthStateChanged(auth, async (u) => { if (u) { setUser(u); const docRef = doc(db, "users", u.uid); const snap = await getDoc(docRef); if (snap.exists()) { const data = snap.data(); setXP(data.xp || 0); setLevel(data.level || 1); setTasks(data.tasks || {}); setWakeUpTime(data.wakeUpTime || "06:00"); setStrictMode(data.strictMode || false); } } }); }, []);
 
-const App = () => { const [user, setUser] = useState(null); const [darkMode, setDarkMode] = useState(false); const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); const [tasks, setTasks] = useState({}); const [input, setInput] = useState(""); const [taskTime, setTaskTime] = useState(""); const [taskDuration, setTaskDuration] = useState(""); const [xp, setXp] = useState(0); const [level, setLevel] = useState(1); const [strictMode, setStrictMode] = useState(false); const [wakeUpTime, setWakeUpTime] = useState("06:00"); const today = new Date().toISOString().split('T')[0];
+useEffect(() => { if (user) { const data = { xp, level, tasks, wakeUpTime, strictMode }; setDoc(doc(db, "users", user.uid), data); } }, [xp, level, tasks, wakeUpTime, strictMode]);
 
-useEffect(() => { onAuthStateChanged(auth, async (u) => { if (u) { setUser(u); const ref = doc(db, "users", u.uid); const snap = await getDoc(ref); if (snap.exists()) { const data = snap.data(); setTasks(data.tasks || {}); setXp(data.xp || 0); setLevel(data.level || 1); setStrictMode(data.strictMode || false); setWakeUpTime(data.wakeUpTime || "06:00"); } else { await setDoc(ref, { tasks: {}, xp: 0, level: 1, strictMode: false, wakeUpTime: "06:00" }); } } else { setUser(null); } }); }, []);
+const handleAddTask = () => { if (!input.trim()) return; const id = Date.now(); const today = selectedDate; const newTask = { id, title: input, time: new Date().toLocaleTimeString([], { hour12: false }), duration: "30", done: false }; setTasks((prev) => { const updated = { ...prev, [today]: [...(prev[today] || []), newTask] }; return updated; }); setInput(""); };
 
-useEffect(() => { if (user) { updateDoc(doc(db, "users", user.uid), { tasks, xp, level, strictMode, wakeUpTime }); } }, [tasks, xp, level, strictMode, wakeUpTime]);
+const handleTaskToggle = (id) => { const today = selectedDate; const updated = tasks[today].map((t) => t.id === id ? { ...t, done: !t.done } : t ); setTasks({ ...tasks, [today]: updated }); if (!tasks[today].find((t) => t.id === id).done) setXP((prev) => prev + 10); };
 
-const handleAddTask = () => { if (!input || !taskTime || !taskDuration) return; const newTask = { text: input, done: false, time: taskTime, duration: taskDuration }; setTasks(prev => ({ ...prev, [selectedDate]: [...(prev[selectedDate] || []), newTask] })); setInput(""); setTaskTime(""); setTaskDuration(""); };
+const handleDeathMode = () => { const today = new Date().toISOString().slice(0, 10); const now = new Date(); const [wakeH, wakeM] = wakeUpTime.split(":").map(Number); const deadline = new Date(now); deadline.setHours(wakeH, wakeM, 0, 0); if (now > deadline && strictMode) { setXP(0); setLevel(1); } };
 
-const toggleTask = (index) => { const dayTasks = tasks[today] || []; const newDayTasks = dayTasks.map((task, i) => i === index ? { ...task, done: !task.done } : task ); setTasks(prev => ({ ...prev, [today]: newDayTasks })); if (!dayTasks[index].done) addXp(10); };
+useEffect(() => { const interval = setInterval(handleDeathMode, 60000); return () => clearInterval(interval); }, [wakeUpTime, strictMode]);
 
-const addXp = (amount) => { const newXp = xp + amount; if (newXp >= level * 100) { setLevel(level + 1); setXp(newXp - level * 100); } else { setXp(newXp); } };
+const levelCap = 100; const progress = (xp % levelCap); const progressPercent = (progress / levelCap) * 100;
 
-const checkDeathMode = () => { const now = new Date(); const [h, m] = wakeUpTime.split(":").map(Number); const wakeTime = new Date(); wakeTime.setHours(h, m, 0, 0); const missed = (now > wakeTime && (tasks[today] || []).some(t => !t.done)); if (strictMode && missed) { alert("You missed a task. XP reset!"); setXp(0); setLevel(1); } };
+return ( <div className={dark ? "bg-gray-900 text-white min-h-screen" : "bg-white text-black min-h-screen p-4"}> <div className="flex justify-between items-center mb-4"> <h1 className="text-2xl font-bold">No Mercy</h1> <div> <button onClick={() => setDark(!dark)} className="mr-2">{dark ? "☀️" : "🌙"}</button> {user ? ( <button onClick={() => signOut(auth)}>Logout</button> ) : ( <button onClick={async () => { const provider = new GoogleAuthProvider(); const result = await signInWithPopup(auth, provider); setUser(result.user); }} >Login with Google</button> )} </div> </div>
 
-useEffect(() => { const id = setInterval(checkDeathMode, 60000); return () => clearInterval(id); }, [tasks, strictMode, wakeUpTime]);
-
-const signIn = () => signInWithPopup(auth, provider); const logOut = () => signOut(auth);
-
-if (!user) return <div className="p-4 text-center"><button className="bg-blue-500 text-white px-4 py-2" onClick={signIn}>Sign in with Google</button></div>;
-
-return ( <div className={darkMode ? "bg-gray-900 text-white min-h-screen" : "bg-white text-black min-h-screen"}> <nav className="flex justify-between p-4 shadow"> <span>No Mercy</span> <div> <button onClick={() => setDarkMode(!darkMode)}>Toggle Theme</button> <button className="ml-2 text-sm underline" onClick={logOut}>Logout</button> </div> </nav>
-
-<div className="p-4 space-y-4">
-    <h1 className="text-xl">Welcome, {user.displayName}</h1>
-
-    <div className="space-y-2">
-      <label>Custom Wake-up Time:</label>
-      <input type="time" className="border p-1" value={wakeUpTime} onChange={(e) => setWakeUpTime(e.target.value)} />
-
-      <label>Date:</label>
-      <input type="date" className="border p-1" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
-
-      <div className="flex gap-2">
-        <input placeholder="Task" className="border p-1" value={input} onChange={(e) => setInput(e.target.value)} />
-        <input type="time" className="border p-1" value={taskTime} onChange={(e) => setTaskTime(e.target.value)} />
-        <input placeholder="Duration" className="border p-1" value={taskDuration} onChange={(e) => setTaskDuration(e.target.value)} />
-        <button onClick={handleAddTask} className="bg-green-500 text-white px-2">Add</button>
+{user && (
+    <div>
+      <div className="mb-2">
+        <label>Wake-Up Time:</label>
+        <input type="time" value={wakeUpTime} onChange={(e) => setWakeUpTime(e.target.value)} className="ml-2" />
+        <label className="ml-4">
+          <input type="checkbox" checked={strictMode} onChange={(e) => setStrictMode(e.target.checked)} /> Strict Mode
+        </label>
       </div>
-    </div>
 
-    <h2 className="text-lg">Today's Tasks ({today})</h2>
-    {(tasks[today] || []).map((task, index) => (
-      <div key={index} className="flex justify-between p-2 border rounded">
-        <div>
-          <strong>{task.text}</strong><br />
-          <small>{task.time} | {task.duration}</small>
+      <div className="mb-2">
+        <label>Select Date:</label>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="ml-2"
+        />
+      </div>
+
+      <div className="mb-2">
+        <input
+          type="text"
+          placeholder="Add task"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          className="border p-1"
+        />
+        <button onClick={handleAddTask} className="ml-2 bg-blue-500 text-white px-2 py-1 rounded">Add</button>
+      </div>
+
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold">Tasks for {selectedDate}:</h2>
+        {(tasks[selectedDate] || []).map((task) => (
+          <div key={task.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-2 my-1 rounded">
+            <span>{task.title}</span>
+            <div className="flex items-center">
+              <span className="text-sm mr-2">{task.time} ({task.duration} min)</span>
+              <input type="checkbox" checked={task.done} onChange={() => handleTaskToggle(task.id)} />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-4">
+        <p>XP: {xp} | Level: {level}</p>
+        <div className="h-4 w-full bg-gray-300 rounded overflow-hidden">
+          <div
+            className="bg-green-500 h-full transition-all duration-700 ease-in-out"
+            style={{ width: `${progressPercent}%` }}
+          ></div>
         </div>
-        <input type="checkbox" checked={task.done} onChange={() => toggleTask(index)} />
       </div>
-    ))}
 
-    <div className="mt-4">
-      <label>Strict Mode:</label>
-      <input type="checkbox" className="ml-2" checked={strictMode} onChange={(e) => setStrictMode(e.target.checked)} />
+      <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
+        <h2 className="text-xl font-semibold mb-2">📊 Your Report</h2>
+        <p>Total XP: {xp}</p>
+        <p>Level: {level}</p>
+        <p>Wake Time: {wakeUpTime}</p>
+        <p>Strict Mode: {strictMode ? "ON" : "OFF"}</p>
+        <p>Total Tasks: {Object.values(tasks).flat().length}</p>
+      </div>
     </div>
-
-    <div className="mt-4">
-      <p>XP: {xp} / {level * 100}</p>
-      <motion.div className="bg-gray-300 h-4 rounded overflow-hidden">
-        <motion.div className="bg-blue-600 h-4" initial={{ width: 0 }} animate={{ width: `${(xp / (level * 100)) * 100}%` }} />
-      </motion.div>
-      <p>Level: {level}</p>
-    </div>
-
-    <div className="mt-4">
-      <h2 className="text-lg">Report</h2>
-      <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm overflow-x-auto">
-        {JSON.stringify({ xp, level, tasks: tasks[today] }, null, 2)}
-      </pre>
-    </div>
-  </div>
+  )}
 </div>
 
 ); };
 
 export default App;
 
-    
+                                                                                                
