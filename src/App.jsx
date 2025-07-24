@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { auth, db, googleProvider } from "./firebaseConfig";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -40,21 +46,29 @@ export default function App() {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
-      console.error("Google login error:", error);
-      alert("Login failed. Check console for details.");
+      console.error("Login Error:", error);
     }
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    setTasks({});
-    setXp(0);
-    setLevel(1);
-    setXpFrozen(false);
-    setForgiveLeft(6);
-    setMissedOnStrictDay(false);
-    setDeathDayLocked1(false);
-    setDeathDayLocked2(false);
+    try {
+      await signOut(auth);
+      // Reset all states after logout
+      setUser(null);
+      setPage("dashboard");
+      setTasks({});
+      setXp(0);
+      setLevel(1);
+      setXpFrozen(false);
+      setForgiveLeft(6);
+      setMissedOnStrictDay(false);
+      setDeathDayLocked1(false);
+      setDeathDayLocked2(false);
+      setSelectedDeathDay(null);
+      setSelectedDeathDay2(null);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
   };
 
   useEffect(() => {
@@ -66,7 +80,12 @@ export default function App() {
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          setDoc(userRef, { name: user.displayName, email: user.email, xp: 0, level: 1 });
+          setDoc(userRef, {
+            name: user.displayName,
+            email: user.email,
+            xp: 0,
+            level: 1,
+          });
         }
       });
     }
@@ -223,7 +242,6 @@ export default function App() {
       style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
       {navbar}
       {strictModeBanner}
-      {/* Dashboard */}
       {page === "dashboard" && (
         <div className="pt-20 p-4 text-white">
           <h1 className="text-2xl mb-2">Welcome, {user?.displayName}</h1>
@@ -253,7 +271,6 @@ export default function App() {
           ) : <p>No tasks for today</p>}
         </div>
       )}
-
       {page === "reports" && (
         <div className="pt-20 p-4 text-white">
           <h2 className="text-2xl mb-2">Reports</h2>
@@ -261,7 +278,6 @@ export default function App() {
           <p>Total tasks completed: {Object.values(tasks).flat().filter((t) => t.done).length}</p>
         </div>
       )}
-
       {page === "deathmode" && (
         <div className="pt-20 p-4 text-white">
           <h2 className="text-2xl mb-4">Death Mode</h2>
@@ -296,7 +312,6 @@ export default function App() {
           )}
         </div>
       )}
-
       {page === "leaderboard" && <Leaderboard />}
       {page === "achievements" && <Achievements />}
     </div>
