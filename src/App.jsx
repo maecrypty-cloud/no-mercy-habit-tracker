@@ -1,7 +1,3 @@
-import React, { useEffect, useState } from "react";
-import { auth, db, googleProvider } from "./firebaseConfig";
-import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function App() {
   const [user, setUser] = useState(null);
