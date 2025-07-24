@@ -1,3 +1,6 @@
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    console.log("Auth state changed:", currentUser); // ✅ Check if this logs
 import React, { useState, useEffect } from "react"; import { auth, db, googleProvider } from "./firebaseConfig"; import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth"; import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"; import Leaderboard from "./Leaderboard"; import Achievements from "./Achievements";
 
 export default function App() { const [user, setUser] = useState(null); const [loading, setLoading] = useState(true); const [page, setPage] = useState("dashboard"); const [tasks, setTasks] = useState({}); const [xp, setXp] = useState(0); const [level, setLevel] = useState(1); const [xpFrozen, setXpFrozen] = useState(false); const [forgiveLeft, setForgiveLeft] = useState(6); const [selectedDeathDay, setSelectedDeathDay] = useState(null); const [selectedDeathDay2, setSelectedDeathDay2] = useState(null); const [deathDayLocked1, setDeathDayLocked1] = useState(false); const [deathDayLocked2, setDeathDayLocked2] = useState(false); const [today, setToday] = useState(new Date().toISOString().split("T")[0]); const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
