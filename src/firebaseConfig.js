@@ -1,4 +1,8 @@
-// firebaseConfig.js (CDN version)
+// firebaseConfig.js (ES Modules version)
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
 const firebaseConfig = {
   apiKey: "AIzaSyDrqLVyX7d3_fb9CPjcvs3srh8hRA7d1OI",
   authDomain: "no-mercy-2e372.firebaseapp.com",
@@ -9,10 +13,12 @@ const firebaseConfig = {
   measurementId: "G-XD74PL8KXJ"
 };
 
-// Firebase initialize
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const provider = new firebase.auth.GoogleAuthProvider();
-const db = firebase.firestore();
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Services
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+const db = getFirestore(app);
 
 export { auth, provider, db };
