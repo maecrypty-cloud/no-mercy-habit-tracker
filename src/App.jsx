@@ -38,12 +38,25 @@ export default function App() {
   const xpRequired = 500 * level;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser || null);
-      if (!currentUser) setPage("dashboard");
-    });
-    return () => unsubscribe();
-  }, []);
+  const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    if (currentUser) {
+      setUser(currentUser);
+    } else {
+      setUser(null);
+      // Reset only after logout
+      setTasks({});
+      setXp(0);
+      setLevel(1);
+      setXpFrozen(false);
+      setForgiveLeft(6);
+      setMissedOnStrictDay(false);
+      setDeathDayLocked1(false);
+      setDeathDayLocked2(false);
+      setPage("dashboard");
+    }
+  });
+  return () => unsubscribe();
+}, []);
 
   const handleGoogleLogin = async () => {
     try {
