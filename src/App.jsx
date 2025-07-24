@@ -1,6 +1,8 @@
+// App.jsx
 import React, { useState, useEffect } from "react";
-import { auth, db, googleProvider } from "./firebaseConfig";
+import { auth, db, googleProvider } from "./firebase.config";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -28,7 +30,6 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
-  // --- AUTH LISTENER ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser || null);
@@ -36,37 +37,37 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- LOGIN ---
   const handleGoogleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error(error);
-      alert("Login failed: " + error.message);
     }
   };
 
-  // --- LOGOUT ---
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      // No need to manually change page, state resets automatically
-    } catch (error) {
-      console.error("Logout error:", error);
-    }
+    await signOut(auth);
+    setTasks({});
+    setXp(0);
+    setLevel(1);
+    setXpFrozen(false);
+    setForgiveLeft(6);
+    setMissedOnStrictDay(false);
+    setDeathDayLocked1(false);
+    setDeathDayLocked2(false);
+    setPage("dashboard");
   };
 
-  // --- FETCH XP / LEVEL ---
   useEffect(() => {
     if (user) {
-      const userRef = db.collection("users").doc(user.uid);
-      userRef.get().then((doc) => {
-        if (doc.exists) {
-          const data = doc.data();
+      const userRef = doc(db, "users", user.uid);
+      getDoc(userRef).then((docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          userRef.set({
+          setDoc(userRef, {
             name: user.displayName,
             email: user.email,
             xp: 0,
@@ -77,14 +78,13 @@ export default function App() {
     }
   }, [user]);
 
-  // --- UPDATE XP/LEVEL DB ---
   useEffect(() => {
     if (user) {
-      db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
+      const userRef = doc(db, "users", user.uid);
+      updateDoc(userRef, { xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
-  // --- LEVEL UP CHECK ---
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -93,7 +93,6 @@ export default function App() {
     }
   }, [xp]);
 
-  // --- STRICT MODE CHECK ---
   const isDeathDayToday = () => {
     const todayDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
@@ -119,7 +118,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [today, weekNumber]);
 
-  // --- TASKS ---
   const addTask = (task) => {
     setTasks((prev) => {
       const existing = prev[task.date] || [];
@@ -212,7 +210,6 @@ export default function App() {
     </div>
   );
 
-  // --- LOGIN SCREEN ---
   if (!user) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
@@ -227,7 +224,6 @@ export default function App() {
     );
   }
 
-  // --- DASHBOARD + OTHER PAGES ---
   return (
     <div className="min-h-screen bg-cover bg-center"
       style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
@@ -307,4 +303,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-        }
+    }
