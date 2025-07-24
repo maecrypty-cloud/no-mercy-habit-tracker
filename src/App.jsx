@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from "react";
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => localStorage.getItem("user") || null);
   const [page, setPage] = useState("dashboard");
-  const [tasks, setTasks] = useState({}); // <-- DATE-WISE STORAGE
-  const [xp, setXp] = useState(0);
-  const [level, setLevel] = useState(1);
+  const [tasks, setTasks] = useState(() => {
+    const storedTasks = localStorage.getItem("tasks");
+    return storedTasks ? JSON.parse(storedTasks) : {};
+  });
+  const [xp, setXp] = useState(() => Number(localStorage.getItem("xp")) || 0);
+  const [level, setLevel] = useState(() => Number(localStorage.getItem("level")) || 1);
   const [xpFrozen, setXpFrozen] = useState(false);
-  const [forgiveLeft, setForgiveLeft] = useState(6);
-  const [selectedDeathDay, setSelectedDeathDay] = useState(null);
-  const [selectedDeathDay2, setSelectedDeathDay2] = useState(null);
+  const [forgiveLeft, setForgiveLeft] = useState(
+    () => Number(localStorage.getItem("forgiveLeft")) || 6
+  );
+  const [selectedDeathDay, setSelectedDeathDay] = useState(localStorage.getItem("selectedDeathDay") || null);
+  const [selectedDeathDay2, setSelectedDeathDay2] = useState(localStorage.getItem("selectedDeathDay2") || null);
   const [deathDayLocked1, setDeathDayLocked1] = useState(false);
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
@@ -23,6 +28,15 @@ export default function App() {
   }
 
   const xpRequired = 500 * level;
+
+  // === LocalStorage Sync ===
+  useEffect(() => localStorage.setItem("user", user || ""), [user]);
+  useEffect(() => localStorage.setItem("tasks", JSON.stringify(tasks)), [tasks]);
+  useEffect(() => localStorage.setItem("xp", xp), [xp]);
+  useEffect(() => localStorage.setItem("level", level), [level]);
+  useEffect(() => localStorage.setItem("forgiveLeft", forgiveLeft), [forgiveLeft]);
+  useEffect(() => localStorage.setItem("selectedDeathDay", selectedDeathDay || ""), [selectedDeathDay]);
+  useEffect(() => localStorage.setItem("selectedDeathDay2", selectedDeathDay2 || ""), [selectedDeathDay2]);
 
   useEffect(() => {
     if (xp >= xpRequired) {
@@ -73,6 +87,7 @@ export default function App() {
     setMissedOnStrictDay(false);
     setDeathDayLocked1(false);
     setDeathDayLocked2(false);
+    localStorage.clear();
   };
 
   const addTask = (task) => {
@@ -280,4 +295,4 @@ export default function App() {
       {page === "deathmode" && deathMode}
     </div>
   );
-    }
+                                 }
