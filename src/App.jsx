@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { auth, provider, db } from "./firebaseConfig";
-import { signInWithPopup, signOut } from "firebase/auth";
-import { doc, setDoc, updateDoc, getDoc } from "firebase/firestore";
+
+// signInWithPopup etc. ab firebase ke global object se aayega
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
