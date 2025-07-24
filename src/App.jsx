@@ -1,21 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { auth, db, googleProvider } from "./firebaseConfig";
-import {
-  signInWithPopup,
-  signOut,
-  onAuthStateChanged
-} from "firebase/auth";
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // NEW
   const [page, setPage] = useState("dashboard");
   const [tasks, setTasks] = useState({});
   const [xp, setXp] = useState(0);
@@ -28,7 +20,6 @@ export default function App() {
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   function getWeekNumber(date) {
     const firstDay = new Date(date.getFullYear(), 0, 1);
@@ -38,23 +29,24 @@ export default function App() {
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
   const xpRequired = 500 * level;
 
-  // --- AUTH LISTENER ---
+  // -------------------- AUTH & INITIAL DATA LOAD --------------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
+        setUser(currentUser);
         const userRef = doc(db, "users", currentUser.uid);
         const docSnap = await getDoc(userRef);
+
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setXp(data.xp || 0);
-          setLevel(data.level || 1);
+          setXp(data.xp ?? 0);
+          setLevel(data.level ?? 1);
           setForgiveLeft(data.forgiveLeft ?? 6);
-          setTasks(data.tasks || {});
-          setSelectedDeathDay(data.selectedDeathDay || null);
-          setSelectedDeathDay2(data.selectedDeathDay2 || null);
-          setDeathDayLocked1(data.deathDayLocked1 || false);
-          setDeathDayLocked2(data.deathDayLocked2 || false);
+          setTasks(data.tasks ?? {});
+          setSelectedDeathDay(data.selectedDeathDay ?? null);
+          setSelectedDeathDay2(data.selectedDeathDay2 ?? null);
+          setDeathDayLocked1(data.deathDayLocked1 ?? false);
+          setDeathDayLocked2(data.deathDayLocked2 ?? false);
         } else {
           await setDoc(userRef, {
             name: currentUser.displayName,
@@ -70,7 +62,7 @@ export default function App() {
           });
         }
       } else {
-        // logout -> reset local states
+        setUser(null);
         setTasks({});
         setXp(0);
         setLevel(1);
@@ -81,12 +73,35 @@ export default function App() {
         setDeathDayLocked2(false);
         setPage("dashboard");
       }
-      setLoading(false);
+      setLoading(false); // IMPORTANT
     });
+
     return () => unsubscribe();
   }, []);
 
-  // --- SAVE TO FIRESTORE WHEN STATE CHANGES ---
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    // Local Reset after Logout
+    setTasks({});
+    setXp(0);
+    setLevel(1);
+    setXpFrozen(false);
+    setForgiveLeft(6);
+    setMissedOnStrictDay(false);
+    setDeathDayLocked1(false);
+    setDeathDayLocked2(false);
+    setPage("dashboard");
+  };
+
+  // -------------------- UPDATE FIRESTORE WHEN DATA CHANGES --------------------
   useEffect(() => {
     if (user) {
       const userRef = doc(db, "users", user.uid);
@@ -101,21 +116,8 @@ export default function App() {
         deathDayLocked2
       }).catch(console.error);
     }
-  }, [user, xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, deathDayLocked1, deathDayLocked2]);
+  }, [xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, deathDayLocked1, deathDayLocked2, user]);
 
-  const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleLogout = async () => {
-    await signOut(auth);
-  };
-
-  // --- LEVEL UP LOGIC ---
   useEffect(() => {
     if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
@@ -129,7 +131,6 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
-  // --- DATE & WEEK RESET ---
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -174,6 +175,7 @@ export default function App() {
 
     newDateTasks[index].done = true;
     setTasks((prev) => ({ ...prev, [date]: newDateTasks }));
+
     if (!xpFrozen && !missedOnStrictDay) setXp((prev) => prev + 10);
   };
 
@@ -219,25 +221,7 @@ export default function App() {
     e.target.reset();
   };
 
-  // --- UI ---
-  if (loading) {
-    return <div className="h-screen flex justify-center items-center text-white text-2xl">Loading...</div>;
-  }
-
-  if (!user) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
-        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
-        <div className="bg-white/20 p-6 rounded text-white text-center">
-          <h1 className="text-xl mb-4">Login to No Mercy</h1>
-          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
-            Login with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
-
+  // -------------------- NAVBAR & UI --------------------
   const navbar = (
     <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
       <div className="font-bold text-lg">No Mercy</div>
@@ -258,6 +242,24 @@ export default function App() {
       {missedOnStrictDay && " (XP Locked - You missed a task!)"}
     </div>
   );
+
+  if (loading) {
+    return <div className="h-screen flex items-center justify-center text-white text-2xl">Loading...</div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
+        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
+        <div className="bg-white/20 p-6 rounded text-white text-center">
+          <h1 className="text-xl mb-4">Login to No Mercy</h1>
+          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
+            Login with Google
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-cover bg-center"
@@ -340,4 +342,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-  }
+    }
