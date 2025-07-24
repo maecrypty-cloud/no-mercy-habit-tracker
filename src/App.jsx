@@ -1,74 +1,86 @@
-import React, { useEffect, useState } from "react"; import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth"; import { doc, setDoc, getDoc, onSnapshot } from "firebase/firestore"; import { db } from "./firebaseconfig"; import { motion } from "framer-motion"; import { Sun, Moon } from "lucide-react";
+// Full-featured App.jsx import React, { useState, useEffect } from "react"; import { motion } from "https://cdn.skypack.dev/framer-motion";
 
-import Navbar from "./Navbar"; import Leaderboard from "./Leaderboard"; import Achievements from "./Achievements"; import Report from "./Report";
+// Firebase CDN setup import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-app.js"; import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore.js"; import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.6.11/firebase-auth.js";
 
-const App = () => { const [user, setUser] = useState(null); const [darkMode, setDarkMode] = useState(false); const [page, setPage] = useState("dashboard");
+const firebaseConfig = { apiKey: "AIzaSyB3GgAgQvcuWElNsrZ0FaZSSYoPY0tnSTw", authDomain: "no-mercy-28e0a.firebaseapp.com", projectId: "no-mercy-28e0a", storageBucket: "no-mercy-28e0a.appspot.com", messagingSenderId: "353208485106", appId: "1:353208485106:web:bc33f4d201cbfd95f8fc6b", measurementId: "G-DT0SXRFFGR" };
 
-const [tasks, setTasks] = useState({}); const [input, setInput] = useState(""); const [xp, setXp] = useState(0); const [level, setLevel] = useState(1); const [forgiveLeft, setForgiveLeft] = useState(3); const [xpFrozen, setXpFrozen] = useState(false); const [missedOnStrictDay, setMissedOnStrictDay] = useState(false); const [deathDayLocked1, setDeathDayLocked1] = useState(false); const [deathDayLocked2, setDeathDayLocked2] = useState(false);
+const app = initializeApp(firebaseConfig); const db = getFirestore(); const auth = getAuth(); const provider = new GoogleAuthProvider();
 
-const auth = getAuth(); const provider = new GoogleAuthProvider();
+const App = () => { const [user, setUser] = useState(null); const [darkMode, setDarkMode] = useState(false); const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]); const [tasks, setTasks] = useState({}); const [input, setInput] = useState(""); const [taskTime, setTaskTime] = useState(""); const [taskDuration, setTaskDuration] = useState(""); const [xp, setXp] = useState(0); const [level, setLevel] = useState(1); const [strictMode, setStrictMode] = useState(false); const [wakeUpTime, setWakeUpTime] = useState("06:00"); const today = new Date().toISOString().split('T')[0];
 
-const signIn = async () => { try { await signInWithPopup(auth, provider); } catch (err) { alert("Error signing in: " + err.message); } };
+useEffect(() => { onAuthStateChanged(auth, async (u) => { if (u) { setUser(u); const ref = doc(db, "users", u.uid); const snap = await getDoc(ref); if (snap.exists()) { const data = snap.data(); setTasks(data.tasks || {}); setXp(data.xp || 0); setLevel(data.level || 1); setStrictMode(data.strictMode || false); setWakeUpTime(data.wakeUpTime || "06:00"); } else { await setDoc(ref, { tasks: {}, xp: 0, level: 1, strictMode: false, wakeUpTime: "06:00" }); } } else { setUser(null); } }); }, []);
 
-const saveData = async (uid, newData) => { try { await setDoc(doc(db, "users", uid), newData, { merge: true }); } catch (err) { console.error("Error saving to Firestore:", err); } };
+useEffect(() => { if (user) { updateDoc(doc(db, "users", user.uid), { tasks, xp, level, strictMode, wakeUpTime }); } }, [tasks, xp, level, strictMode, wakeUpTime]);
 
-useEffect(() => { const unsubscribe = onAuthStateChanged(auth, async (u) => { if (u) { setUser(u); const ref = doc(db, "users", u.uid); const snap = await getDoc(ref); if (snap.exists()) { const data = snap.data(); setTasks(data.tasks || {}); setXp(data.xp || 0); setLevel(data.level || 1); setForgiveLeft(data.forgiveLeft ?? 3); setXpFrozen(data.xpFrozen ?? false); setMissedOnStrictDay(data.missedOnStrictDay ?? false); setDeathDayLocked1(data.deathDayLocked1 ?? false); setDeathDayLocked2(data.deathDayLocked2 ?? false); } else { await saveData(u.uid, { tasks: {}, xp: 0, level: 1, forgiveLeft: 3, xpFrozen: false, missedOnStrictDay: false, deathDayLocked1: false, deathDayLocked2: false, }); } onSnapshot(ref, (docSnap) => { const d = docSnap.data(); setTasks(d.tasks); setXp(d.xp); setLevel(d.level); setForgiveLeft(d.forgiveLeft); setXpFrozen(d.xpFrozen); setMissedOnStrictDay(d.missedOnStrictDay); setDeathDayLocked1(d.deathDayLocked1); setDeathDayLocked2(d.deathDayLocked2); }); } else { setUser(null); } }); return () => unsubscribe(); }, []);
+const handleAddTask = () => { if (!input || !taskTime || !taskDuration) return; const newTask = { text: input, done: false, time: taskTime, duration: taskDuration }; setTasks(prev => ({ ...prev, [selectedDate]: [...(prev[selectedDate] || []), newTask] })); setInput(""); setTaskTime(""); setTaskDuration(""); };
 
-const addTask = async () => { if (!input.trim() || !user) return; const newTasks = { ...tasks, [Date.now()]: { name: input, done: false } }; setInput(""); await saveData(user.uid, { tasks: newTasks }); };
+const toggleTask = (index) => { const dayTasks = tasks[today] || []; const newDayTasks = dayTasks.map((task, i) => i === index ? { ...task, done: !task.done } : task ); setTasks(prev => ({ ...prev, [today]: newDayTasks })); if (!dayTasks[index].done) addXp(10); };
 
-const toggleDark = () => setDarkMode((prev) => !prev);
+const addXp = (amount) => { const newXp = xp + amount; if (newXp >= level * 100) { setLevel(level + 1); setXp(newXp - level * 100); } else { setXp(newXp); } };
 
-return ( <div className={darkMode ? "dark bg-gray-900 text-white min-h-screen" : "bg-white text-black min-h-screen"}> <Navbar setPage={setPage} darkMode={darkMode} toggleDark={toggleDark} />
+const checkDeathMode = () => { const now = new Date(); const [h, m] = wakeUpTime.split(":").map(Number); const wakeTime = new Date(); wakeTime.setHours(h, m, 0, 0); const missed = (now > wakeTime && (tasks[today] || []).some(t => !t.done)); if (strictMode && missed) { alert("You missed a task. XP reset!"); setXp(0); setLevel(1); } };
 
-{!user ? (
-    <div className="flex justify-center items-center h-screen">
-      <button onClick={signIn} className="px-6 py-3 bg-blue-500 text-white rounded-xl shadow-lg hover:bg-blue-600">Sign in with Google</button>
+useEffect(() => { const id = setInterval(checkDeathMode, 60000); return () => clearInterval(id); }, [tasks, strictMode, wakeUpTime]);
+
+const signIn = () => signInWithPopup(auth, provider); const logOut = () => signOut(auth);
+
+if (!user) return <div className="p-4 text-center"><button className="bg-blue-500 text-white px-4 py-2" onClick={signIn}>Sign in with Google</button></div>;
+
+return ( <div className={darkMode ? "bg-gray-900 text-white min-h-screen" : "bg-white text-black min-h-screen"}> <nav className="flex justify-between p-4 shadow"> <span>No Mercy</span> <div> <button onClick={() => setDarkMode(!darkMode)}>Toggle Theme</button> <button className="ml-2 text-sm underline" onClick={logOut}>Logout</button> </div> </nav>
+
+<div className="p-4 space-y-4">
+    <h1 className="text-xl">Welcome, {user.displayName}</h1>
+
+    <div className="space-y-2">
+      <label>Custom Wake-up Time:</label>
+      <input type="time" className="border p-1" value={wakeUpTime} onChange={(e) => setWakeUpTime(e.target.value)} />
+
+      <label>Date:</label>
+      <input type="date" className="border p-1" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
+
+      <div className="flex gap-2">
+        <input placeholder="Task" className="border p-1" value={input} onChange={(e) => setInput(e.target.value)} />
+        <input type="time" className="border p-1" value={taskTime} onChange={(e) => setTaskTime(e.target.value)} />
+        <input placeholder="Duration" className="border p-1" value={taskDuration} onChange={(e) => setTaskDuration(e.target.value)} />
+        <button onClick={handleAddTask} className="bg-green-500 text-white px-2">Add</button>
+      </div>
     </div>
-  ) : (
-    <motion.div className="p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-      {page === "dashboard" && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold">Welcome, {user.displayName}</h2>
-            <div className="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
-              <div className="bg-green-500 h-4 rounded-full" style={{ width: `${(xp % 100)}%` }}></div>
-            </div>
-            <span className="ml-2 text-sm">Level {level}</span>
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Add new task"
-              className="flex-grow px-4 py-2 border rounded-lg dark:bg-gray-800"
-            />
-            <button onClick={addTask} className="bg-green-500 text-white px-4 py-2 rounded-lg">Add</button>
-          </div>
-          <div className="grid gap-2">
-            {Object.entries(tasks).map(([key, task]) => (
-              <div key={key} className="flex justify-between bg-gray-100 dark:bg-gray-800 p-3 rounded-xl">
-                <span>{task.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      {page === "leaderboard" && <Leaderboard />}
-      {page === "achievements" && <Achievements />}
-      {page === "report" && (
-        <Report
-          xp={xp} level={level} forgiveLeft={forgiveLeft} xpFrozen={xpFrozen}
-          missedOnStrictDay={missedOnStrictDay} deathDayLocked1={deathDayLocked1} deathDayLocked2={deathDayLocked2}
-          tasks={tasks}
-        />
-      )}
-    </motion.div>
-  )}
+    <h2 className="text-lg">Today's Tasks ({today})</h2>
+    {(tasks[today] || []).map((task, index) => (
+      <div key={index} className="flex justify-between p-2 border rounded">
+        <div>
+          <strong>{task.text}</strong><br />
+          <small>{task.time} | {task.duration}</small>
+        </div>
+        <input type="checkbox" checked={task.done} onChange={() => toggleTask(index)} />
+      </div>
+    ))}
+
+    <div className="mt-4">
+      <label>Strict Mode:</label>
+      <input type="checkbox" className="ml-2" checked={strictMode} onChange={(e) => setStrictMode(e.target.checked)} />
+    </div>
+
+    <div className="mt-4">
+      <p>XP: {xp} / {level * 100}</p>
+      <motion.div className="bg-gray-300 h-4 rounded overflow-hidden">
+        <motion.div className="bg-blue-600 h-4" initial={{ width: 0 }} animate={{ width: `${(xp / (level * 100)) * 100}%` }} />
+      </motion.div>
+      <p>Level: {level}</p>
+    </div>
+
+    <div className="mt-4">
+      <h2 className="text-lg">Report</h2>
+      <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm overflow-x-auto">
+        {JSON.stringify({ xp, level, tasks: tasks[today] }, null, 2)}
+      </pre>
+    </div>
+  </div>
 </div>
 
 ); };
 
 export default App;
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+    
