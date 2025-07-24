@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { auth, provider, db } from "./firebaseConfig";
+import {
+  signInWithPopup,
+  signOut
+} from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc
+} from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -27,18 +37,18 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
-  // --- Google Login (CDN style) ---
+  // --- Google Login (Modular) ---
   const handleGoogleLogin = async () => {
     try {
-      const result = await auth.signInWithPopup(provider);
+      const result = await signInWithPopup(auth, provider);
       const loggedUser = result.user;
       setUser(loggedUser);
 
       // Firestore user fetch
-      const userRef = db.collection("users").doc(loggedUser.uid);
-      const userDoc = await userRef.get();
-      if (!userDoc.exists) {
-        await userRef.set({
+      const userRef = doc(db, "users", loggedUser.uid);
+      const userDoc = await getDoc(userRef);
+      if (!userDoc.exists()) {
+        await setDoc(userRef, {
           name: loggedUser.displayName,
           email: loggedUser.email,
           xp: 0,
@@ -55,7 +65,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await signOut(auth);
     setUser(null);
     setTasks({});
     setXp(0);
@@ -70,7 +80,8 @@ export default function App() {
   // XP aur Level update hone par Firestore update
   useEffect(() => {
     if (user) {
-      db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
+      const userRef = doc(db, "users", user.uid);
+      updateDoc(userRef, { xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
@@ -315,4 +326,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-          }
+            }
