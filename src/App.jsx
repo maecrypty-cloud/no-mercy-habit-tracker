@@ -19,77 +19,99 @@ export default function App() {
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
+  const [loading, setLoading] = useState(true);
 
+  const xpRequired = 500 * level;
+
+  // Helper to get week number
   function getWeekNumber(date) {
     const firstDay = new Date(date.getFullYear(), 0, 1);
     const days = Math.floor((date - firstDay) / (24 * 60 * 60 * 1000));
     return Math.ceil((days + firstDay.getDay() + 1) / 7);
   }
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
-  const xpRequired = 500 * level;
 
-  // --- Listen Auth ---
+  // Handle auth state change
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        // Load data from Firestore
-        const userRef = doc(db, "users", currentUser.uid);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
-          const data = snap.data();
-          setXp(data.xp ?? 0);
-          setLevel(data.level ?? 1);
-          setForgiveLeft(data.forgiveLeft ?? 6);
-          setTasks(data.tasks ?? {});
-          setSelectedDeathDay(data.selectedDeathDay ?? null);
-          setSelectedDeathDay2(data.selectedDeathDay2 ?? null);
-          setDeathDayLocked1(data.deathDayLocked1 ?? false);
-          setDeathDayLocked2(data.deathDayLocked2 ?? false);
-        } else {
-          await setDoc(userRef, {
-            name: currentUser.displayName,
-            email: currentUser.email,
-            xp: 0,
-            level: 1,
-            forgiveLeft: 6,
-            tasks: {},
-            selectedDeathDay: null,
-            selectedDeathDay2: null,
-            deathDayLocked1: false,
-            deathDayLocked2: false
-          });
-        }
-      } else {
-        setUser(null);
-        // Reset only after logout
-        setTasks({});
-        setXp(0);
-        setLevel(1);
-        setXpFrozen(false);
-        setForgiveLeft(6);
-        setMissedOnStrictDay(false);
-        setDeathDayLocked1(false);
-        setDeathDayLocked2(false);
-        setSelectedDeathDay(null);
-        setSelectedDeathDay2(null);
-        setPage("dashboard");
-      }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
     });
     return () => unsubscribe();
   }, []);
 
+  // Load user data after login
+  useEffect(() => {
+    const loadUserData = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      const userRef = doc(db, "users", user.uid);
+      const snap = await getDoc(userRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        setXp(data.xp || 0);
+        setLevel(data.level || 1);
+        setForgiveLeft(data.forgiveLeft ?? 6);
+        setTasks(data.tasks || {});
+        setSelectedDeathDay(data.selectedDeathDay || null);
+        setSelectedDeathDay2(data.selectedDeathDay2 || null);
+        setDeathDayLocked1(data.deathDayLocked1 || false);
+        setDeathDayLocked2(data.deathDayLocked2 || false);
+      } else {
+        await setDoc(userRef, {
+          xp: 0,
+          level: 1,
+          forgiveLeft: 6,
+          tasks: {},
+          selectedDeathDay: null,
+          selectedDeathDay2: null,
+          deathDayLocked1: false,
+          deathDayLocked2: false,
+        });
+      }
+      setLoading(false);
+    };
+    loadUserData();
+  }, [user]);
+
+  // Save user data whenever state changes
+  useEffect(() => {
+    if (!user || loading) return;
+    const saveData = async () => {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        xp,
+        level,
+        forgiveLeft,
+        tasks,
+        selectedDeathDay,
+        selectedDeathDay2,
+        deathDayLocked1,
+        deathDayLocked2,
+      });
+    };
+    saveData();
+  }, [
+    xp,
+    level,
+    forgiveLeft,
+    tasks,
+    selectedDeathDay,
+    selectedDeathDay2,
+    deathDayLocked1,
+    deathDayLocked2,
+    user,
+    loading,
+  ]);
+
   const handleGoogleLogin = async () => {
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error) {
-      console.error(error);
-    }
+    await signInWithPopup(auth, googleProvider);
   };
 
   const handleLogout = async () => {
     await signOut(auth);
-    // Reset after logout
+    // Reset only after logout
     setTasks({});
     setXp(0);
     setLevel(1);
@@ -98,27 +120,8 @@ export default function App() {
     setMissedOnStrictDay(false);
     setDeathDayLocked1(false);
     setDeathDayLocked2(false);
-    setSelectedDeathDay(null);
-    setSelectedDeathDay2(null);
     setPage("dashboard");
   };
-
-  // --- Persist XP, Level, Forgives, Tasks ---
-  useEffect(() => {
-    if (user) {
-      const userRef = doc(db, "users", user.uid);
-      updateDoc(userRef, {
-        xp,
-        level,
-        forgiveLeft,
-        tasks,
-        selectedDeathDay,
-        selectedDeathDay2,
-        deathDayLocked1,
-        deathDayLocked2
-      }).catch(console.error);
-    }
-  }, [xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, deathDayLocked1, deathDayLocked2, user]);
 
   useEffect(() => {
     if (xp >= xpRequired) {
@@ -138,7 +141,6 @@ export default function App() {
       const now = new Date();
       const currentDate = now.toISOString().split("T")[0];
       const currentWeek = getWeekNumber(now);
-
       if (currentDate !== today) {
         setToday(currentDate);
         setXpFrozen(false);
@@ -177,7 +179,6 @@ export default function App() {
 
     newDateTasks[index].done = true;
     setTasks((prev) => ({ ...prev, [date]: newDateTasks }));
-
     if (!xpFrozen && !missedOnStrictDay) setXp((prev) => prev + 10);
   };
 
@@ -207,8 +208,6 @@ export default function App() {
       if (!allDone) setMissedOnStrictDay(true);
     }
   }, [tasks, today]);
-
-  const filteredTasks = tasks[today] || [];
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -244,6 +243,8 @@ export default function App() {
     </div>
   );
 
+  if (loading) return <div className="text-white p-4">Loading...</div>;
+
   if (!user) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
@@ -257,6 +258,8 @@ export default function App() {
       </div>
     );
   }
+
+  const filteredTasks = tasks[today] || [];
 
   return (
     <div className="min-h-screen bg-cover bg-center"
@@ -339,4 +342,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-  }
+        }
