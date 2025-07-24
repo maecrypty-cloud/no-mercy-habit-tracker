@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { auth, provider, signInWithPopup, signOut, db } from "./firebaseConfig";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db, googleProvider } from "./firebase";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -28,35 +28,23 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser || null);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const handleGoogleLogin = async () => {
     try {
-      const result = await signInWithPopup(auth, provider);
-      const loggedUser = result.user;
-      setUser(loggedUser);
-
-      const userRef = doc(db, "users", loggedUser.uid);
-      const userSnap = await getDoc(userRef);
-      if (!userSnap.exists()) {
-        await setDoc(userRef, {
-          name: loggedUser.displayName,
-          email: loggedUser.email,
-          xp: 0,
-          level: 1
-        });
-      } else {
-        const data = userSnap.data();
-        setXp(data.xp || 0);
-        setLevel(data.level || 1);
-      }
+      await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error(error);
-      alert("Login failed");
     }
   };
 
   const handleLogout = async () => {
     await signOut(auth);
-    setUser(null);
     setTasks({});
     setXp(0);
     setLevel(1);
@@ -69,8 +57,22 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const userRef = doc(db, "users", user.uid);
-      updateDoc(userRef, { xp, level }).catch(console.error);
+      const userRef = db.collection("users").doc(user.uid);
+      userRef.get().then((doc) => {
+        if (doc.exists) {
+          const data = doc.data();
+          setXp(data.xp || 0);
+          setLevel(data.level || 1);
+        } else {
+          userRef.set({ name: user.displayName, email: user.email, xp: 0, level: 1 });
+        }
+      });
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
@@ -201,17 +203,21 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
+      <div className="h-screen w-full flex items-center justify-center bg-cover bg-center"
+        style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
         <div className="bg-white/20 p-6 rounded text-white text-center">
           <h1 className="text-xl mb-4">Login to No Mercy</h1>
-          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">Login with Google</button>
+          <button onClick={handleGoogleLogin} className="bg-blue-600 px-4 py-2 rounded w-full">
+            Login with Google
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-cover bg-center" style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
+    <div className="min-h-screen bg-cover bg-center"
+      style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
       {navbar}
       {strictModeBanner}
       {page === "dashboard" && (
@@ -288,4 +294,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-            }
+      }
