@@ -3,28 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>No Mercy Habit Tracker</title>
+    <title>No Mercy</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyDrqLVyX7d3_fb9CPjcvs3srh8hRA7d1OI",
-    authDomain: "no-mercy-2e372.firebaseapp.com",
-    projectId: "no-mercy-2e372",
-    storageBucket: "no-mercy-2e372.firebasestorage.app",
-    messagingSenderId: "363291533348",
-    appId: "1:363291533348:web:2deec586a5bc831b9678b1",
-    measurementId: "G-XD74PL8KXJ"
-  };
-  firebase.initializeApp(firebaseConfig);
-  window.auth = firebase.auth();
-  window.db = firebase.firestore();
-  window.provider = new firebase.auth.GoogleAuthProvider();
-</script>
-    </head>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module">
+      import React from "https://cdn.skypack.dev/react";
+      import ReactDOM from "https://cdn.skypack.dev/react-dom";
+      import App from "./App.jsx";
+
+      // Firebase Config (Replace with your own)
+      const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        messagingSenderId: "YOUR_SENDER_ID",
+        appId: "YOUR_APP_ID"
+      };
+      firebase.initializeApp(firebaseConfig);
+
+      ReactDOM.render(React.createElement(App), document.getElementById("root"));
+    </script>
   </body>
 </html>
