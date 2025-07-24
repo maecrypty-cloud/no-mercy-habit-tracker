@@ -1,30 +1,29 @@
-// App.jsx
 import React, { useState, useEffect } from "react";
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
   signInWithPopup,
   GoogleAuthProvider,
+  signOut,
   onAuthStateChanged,
-  signOut
 } from "firebase/auth";
 import {
   getFirestore,
   doc,
-  setDoc,
-  getDoc
+  getDoc,
+  setDoc
 } from "firebase/firestore";
 
-// Firebase Config
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyB3GgAgQvcuWElNsrZ0FaZSSYoPY0tnSTw",
   authDomain: "no-mercy-28e0a.firebaseapp.com",
   projectId: "no-mercy-28e0a",
-  storageBucket: "no-mercy-28e0a.firebasestorage.app",
+  storageBucket: "no-mercy-28e0a.appspot.com",
   messagingSenderId: "353208485106",
-  appId: "1:353208485106:web:bc33f4d201cbfd95f8fc6b",
-  measurementId: "G-DT0SXRFFGR"
+  appId: "1:353208485106:web:bc33f4d201cbfd95f8fc6b"
 };
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -34,47 +33,49 @@ const App = () => {
   const [dark, setDark] = useState(false);
   const [xp, setXP] = useState(0);
   const [level, setLevel] = useState(1);
-  const [tasks, setTasks] = useState({});
   const [input, setInput] = useState("");
-  const [wakeUpTime, setWakeUpTime] = useState("06:00");
+  const [tasks, setTasks] = useState({});
+  const [wakeTime, setWakeTime] = useState("06:00");
   const [strictMode, setStrictMode] = useState(false);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
 
+  // Load user
   useEffect(() => {
     onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
-        const docRef = doc(db, "users", u.uid);
-        const snap = await getDoc(docRef);
+        const snap = await getDoc(doc(db, "users", u.uid));
         if (snap.exists()) {
-          const data = snap.data();
-          setXP(data.xp || 0);
-          setLevel(data.level || 1);
-          setTasks(data.tasks || {});
-          setWakeUpTime(data.wakeUpTime || "06:00");
-          setStrictMode(data.strictMode || false);
+          const d = snap.data();
+          setXP(d.xp || 0);
+          setLevel(d.level || 1);
+          setTasks(d.tasks || {});
+          setWakeTime(d.wakeTime || "06:00");
+          setStrictMode(d.strictMode || false);
         }
       }
     });
   }, []);
 
+  // Save data
   useEffect(() => {
     if (user) {
-      const data = {
+      setDoc(doc(db, "users", user.uid), {
         xp,
         level,
         tasks,
-        wakeUpTime,
-        strictMode
-      };
-      setDoc(doc(db, "users", user.uid), data);
+        wakeTime,
+        strictMode,
+      });
     }
-  }, [xp, level, tasks, wakeUpTime, strictMode]);
+  }, [xp, level, tasks, wakeTime, strictMode]);
+
+  const levelCap = 100;
+  const progressPercent = ((xp % levelCap) / levelCap) * 100;
 
   const handleAddTask = () => {
     if (!input.trim()) return;
     const id = Date.now();
-    const today = selectedDate;
     const newTask = {
       id,
       title: input,
@@ -82,75 +83,80 @@ const App = () => {
       duration: "30",
       done: false
     };
-    setTasks((prev) => {
-      const updated = { ...prev, [today]: [...(prev[today] || []), newTask] };
-      return updated;
+    setTasks(prev => {
+      const list = [...(prev[selectedDate] || []), newTask];
+      return { ...prev, [selectedDate]: list };
     });
     setInput("");
   };
 
-  const handleTaskToggle = (id) => {
-    const today = selectedDate;
-    const updated = tasks[today].map((t) =>
+  const toggleTask = (id) => {
+    const updated = tasks[selectedDate].map(t =>
       t.id === id ? { ...t, done: !t.done } : t
     );
-    setTasks({ ...tasks, [today]: updated });
-    if (!tasks[today].find((t) => t.id === id).done) setXP((prev) => prev + 10);
+    setTasks({ ...tasks, [selectedDate]: updated });
+    const task = tasks[selectedDate].find(t => t.id === id);
+    if (!task?.done) setXP(prev => prev + 10);
   };
 
-  const handleDeathMode = () => {
-    const today = new Date().toISOString().slice(0, 10);
+  const checkWakeTime = () => {
     const now = new Date();
-    const [wakeH, wakeM] = wakeUpTime.split(":").map(Number);
-    const deadline = new Date(now);
-    deadline.setHours(wakeH, wakeM + 10, 0, 0); // 10-minute grace
-    if (now > deadline && strictMode) {
+    const [h, m] = wakeTime.split(":").map(Number);
+    const graceTime = new Date();
+    graceTime.setHours(h, m + 10, 0);
+    if (strictMode && now > graceTime) {
       setXP(0);
       setLevel(1);
     }
   };
 
   useEffect(() => {
-    const interval = setInterval(handleDeathMode, 60000); // check every minute
+    const interval = setInterval(checkWakeTime, 60000);
     return () => clearInterval(interval);
-  }, [wakeUpTime, strictMode]);
-
-  const levelCap = 100;
-  const progress = (xp % levelCap);
-  const progressPercent = (progress / levelCap) * 100;
+  }, [wakeTime, strictMode]);
 
   return (
-    <div className={dark ? "bg-gray-900 text-white min-h-screen" : "bg-white text-black min-h-screen p-4"}>
-      <div className="flex justify-between items-center mb-4">
+    <div className={dark ? "bg-black text-white min-h-screen p-4" : "bg-white text-black min-h-screen p-4"}>
+      <div className="flex justify-between mb-4">
         <h1 className="text-2xl font-bold">No Mercy</h1>
-        <div>
-          <button onClick={() => setDark(!dark)} className="mr-2">{dark ? "☀️" : "🌙"}</button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setDark(!dark)}>{dark ? "☀️" : "🌙"}</button>
           {user ? (
             <button onClick={() => signOut(auth)}>Logout</button>
           ) : (
-            <button
-              onClick={async () => {
-                const provider = new GoogleAuthProvider();
-                const result = await signInWithPopup(auth, provider);
-                setUser(result.user);
-              }}
-            >Login with Google</button>
+            <button onClick={async () => {
+              const provider = new GoogleAuthProvider();
+              const res = await signInWithPopup(auth, provider);
+              setUser(res.user);
+            }}>
+              Login
+            </button>
           )}
         </div>
       </div>
 
       {user && (
-        <div>
+        <>
           <div className="mb-2">
             <label>Wake-Up Time:</label>
-            <input type="time" value={wakeUpTime} onChange={(e) => setWakeUpTime(e.target.value)} className="ml-2" />
+            <input
+              type="time"
+              value={wakeTime}
+              onChange={(e) => setWakeTime(e.target.value)}
+              className="ml-2"
+            />
             <label className="ml-4">
-              <input type="checkbox" checked={strictMode} onChange={(e) => setStrictMode(e.target.checked)} /> Strict Mode
+              <input
+                type="checkbox"
+                checked={strictMode}
+                onChange={(e) => setStrictMode(e.target.checked)}
+              />
+              Strict Mode
             </label>
           </div>
 
           <div className="mb-2">
-            <label>Select Date:</label>
+            <label>Date:</label>
             <input
               type="date"
               value={selectedDate}
@@ -162,22 +168,27 @@ const App = () => {
           <div className="mb-2">
             <input
               type="text"
-              placeholder="Add task"
               value={input}
+              placeholder="Task..."
               onChange={(e) => setInput(e.target.value)}
               className="border p-1"
             />
-            <button onClick={handleAddTask} className="ml-2 bg-blue-500 text-white px-2 py-1 rounded">Add</button>
+            <button onClick={handleAddTask} className="ml-2 px-2 py-1 bg-blue-500 text-white rounded">Add</button>
           </div>
 
           <div className="mb-4">
-            <h2 className="text-lg font-semibold">Tasks for {selectedDate}:</h2>
-            {(tasks[selectedDate] || []).map((task) => (
-              <div key={task.id} className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-2 my-1 rounded">
+            <h2 className="text-lg font-semibold">Today's Tasks</h2>
+            {(tasks[selectedDate] || []).map(task => (
+              <div key={task.id} className="flex justify-between p-2 border-b">
                 <span>{task.title}</span>
-                <div className="flex items-center">
-                  <span className="text-sm mr-2">{task.time} ({task.duration} min)</span>
-                  <input type="checkbox" checked={task.done} onChange={() => handleTaskToggle(task.id)} />
+                <div>
+                  <span className="text-xs">{task.time} ({task.duration}m)</span>
+                  <input
+                    type="checkbox"
+                    className="ml-2"
+                    checked={task.done}
+                    onChange={() => toggleTask(task.id)}
+                  />
                 </div>
               </div>
             ))}
@@ -185,23 +196,23 @@ const App = () => {
 
           <div className="mb-4">
             <p>XP: {xp} | Level: {level}</p>
-            <div className="h-4 w-full bg-gray-300 rounded overflow-hidden">
+            <div className="h-4 bg-gray-300 rounded">
               <div
-                className="bg-green-500 h-full transition-all duration-700 ease-in-out"
+                className="h-4 bg-green-500 transition-all"
                 style={{ width: `${progressPercent}%` }}
               ></div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow">
-            <h2 className="text-xl font-semibold mb-2">📊 Your Report</h2>
+          <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded">
+            <h2 className="text-xl mb-2">📈 Report</h2>
             <p>Total XP: {xp}</p>
             <p>Level: {level}</p>
-            <p>Wake Time: {wakeUpTime}</p>
             <p>Strict Mode: {strictMode ? "ON" : "OFF"}</p>
-            <p>Total Tasks: {Object.values(tasks).flat().length}</p>
+            <p>Wake Time: {wakeTime}</p>
+            <p>Tasks Today: {(tasks[selectedDate] || []).length}</p>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
