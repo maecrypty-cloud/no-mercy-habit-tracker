@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { auth, db, googleProvider } from "./firebase";
+import { auth, db, googleProvider } from "./firebase.config";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -28,6 +29,7 @@ export default function App() {
 
   const xpRequired = 500 * level;
 
+  // Firebase Auth listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser || null);
@@ -55,25 +57,38 @@ export default function App() {
     setDeathDayLocked2(false);
   };
 
+  // Fetch user data
   useEffect(() => {
-    if (user) {
-      const userRef = db.collection("users").doc(user.uid);
-      userRef.get().then((doc) => {
-        if (doc.exists) {
-          const data = doc.data();
+    const fetchUserData = async () => {
+      if (user) {
+        const userRef = doc(db, "users", user.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          userRef.set({ name: user.displayName, email: user.email, xp: 0, level: 1 });
+          await setDoc(userRef, {
+            name: user.displayName,
+            email: user.email,
+            xp: 0,
+            level: 1,
+          });
         }
-      });
-    }
+      }
+    };
+    fetchUserData();
   }, [user]);
 
+  // Update XP & Level in Firestore
   useEffect(() => {
-    if (user) {
-      db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
-    }
+    const updateUserXP = async () => {
+      if (user) {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, { xp, level }).catch(console.error);
+      }
+    };
+    updateUserXP();
   }, [xp, level, user]);
 
   useEffect(() => {
@@ -89,6 +104,7 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
+  // Date & Week Reset
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -294,4 +310,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-      }
+            }
