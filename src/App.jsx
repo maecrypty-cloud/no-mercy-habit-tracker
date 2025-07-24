@@ -16,43 +16,66 @@ import Achievements from "./Achievements";
 
 export default function App() {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [isFirstLoad, setIsFirstLoad] = useState(true);
-
   const [page, setPage] = useState("dashboard");
-  const [tasks, setTasks] = useState(null);
-  const [xp, setXp] = useState(null);
-  const [level, setLevel] = useState(null);
+  const [tasks, setTasks] = useState({});
+  const [xp, setXp] = useState(0);
+  const [level, setLevel] = useState(1);
   const [xpFrozen, setXpFrozen] = useState(false);
-  const [forgiveLeft, setForgiveLeft] = useState(null);
-
+  const [forgiveLeft, setForgiveLeft] = useState(6);
   const [selectedDeathDay, setSelectedDeathDay] = useState(null);
   const [selectedDeathDay2, setSelectedDeathDay2] = useState(null);
   const [deathDayLocked1, setDeathDayLocked1] = useState(false);
   const [deathDayLocked2, setDeathDayLocked2] = useState(false);
   const [today, setToday] = useState(new Date().toISOString().split("T")[0]);
   const [missedOnStrictDay, setMissedOnStrictDay] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const getWeekNumber = (date) => {
+  function getWeekNumber(date) {
     const firstDay = new Date(date.getFullYear(), 0, 1);
     const days = Math.floor((date - firstDay) / (24 * 60 * 60 * 1000));
     return Math.ceil((days + firstDay.getDay() + 1) / 7);
-  };
+  }
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
-  const xpRequired = 500 * (level || 1);
+  const xpRequired = 500 * level;
 
-  // ------------------ Auth ---------------------
+  // --- AUTH LISTENER ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
       if (currentUser) {
-        setUser(currentUser);
+        const userRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(userRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setXp(data.xp || 0);
+          setLevel(data.level || 1);
+          setForgiveLeft(data.forgiveLeft ?? 6);
+          setTasks(data.tasks || {});
+          setSelectedDeathDay(data.selectedDeathDay || null);
+          setSelectedDeathDay2(data.selectedDeathDay2 || null);
+          setDeathDayLocked1(data.deathDayLocked1 || false);
+          setDeathDayLocked2(data.deathDayLocked2 || false);
+        } else {
+          await setDoc(userRef, {
+            name: currentUser.displayName,
+            email: currentUser.email,
+            xp: 0,
+            level: 1,
+            forgiveLeft: 6,
+            tasks: {},
+            selectedDeathDay: null,
+            selectedDeathDay2: null,
+            deathDayLocked1: false,
+            deathDayLocked2: false
+          });
+        }
       } else {
-        setUser(null);
+        // logout -> reset local states
         setTasks({});
         setXp(0);
         setLevel(1);
-        setForgiveLeft(6);
         setXpFrozen(false);
+        setForgiveLeft(6);
         setMissedOnStrictDay(false);
         setDeathDayLocked1(false);
         setDeathDayLocked2(false);
@@ -62,6 +85,23 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // --- SAVE TO FIRESTORE WHEN STATE CHANGES ---
+  useEffect(() => {
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      updateDoc(userRef, {
+        xp,
+        level,
+        forgiveLeft,
+        tasks,
+        selectedDeathDay,
+        selectedDeathDay2,
+        deathDayLocked1,
+        deathDayLocked2
+      }).catch(console.error);
+    }
+  }, [user, xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, deathDayLocked1, deathDayLocked2]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -73,85 +113,29 @@ export default function App() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    setTasks({});
-    setXp(0);
-    setLevel(1);
-    setForgiveLeft(6);
-    setXpFrozen(false);
-    setMissedOnStrictDay(false);
-    setDeathDayLocked1(false);
-    setDeathDayLocked2(false);
-    setPage("dashboard");
   };
 
-  // ------------------ Load user data ---------------------
+  // --- LEVEL UP LOGIC ---
   useEffect(() => {
-    const loadUserData = async () => {
-      if (!user) return;
-      setLoading(true);
-      const userRef = doc(db, "users", user.uid);
-      const snap = await getDoc(userRef);
-
-      if (snap.exists()) {
-        const data = snap.data();
-        setXp(data.xp ?? 0);
-        setLevel(data.level ?? 1);
-        setForgiveLeft(data.forgiveLeft ?? 6);
-        setTasks(data.tasks ?? {});
-        setSelectedDeathDay(data.selectedDeathDay ?? null);
-        setSelectedDeathDay2(data.selectedDeathDay2 ?? null);
-      } else {
-        await setDoc(userRef, {
-          xp: 0,
-          level: 1,
-          forgiveLeft: 6,
-          tasks: {},
-          selectedDeathDay: null,
-          selectedDeathDay2: null
-        });
-        setXp(0);
-        setLevel(1);
-        setForgiveLeft(6);
-        setTasks({});
-      }
-      setIsFirstLoad(false);
-      setLoading(false);
-    };
-    loadUserData();
-  }, [user]);
-
-  // ------------------ Persist updates ---------------------
-  useEffect(() => {
-    if (!user || loading || isFirstLoad) return;
-    const saveData = async () => {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        xp,
-        level,
-        forgiveLeft,
-        tasks,
-        selectedDeathDay,
-        selectedDeathDay2
-      });
-    };
-    saveData();
-  }, [xp, level, forgiveLeft, tasks, selectedDeathDay, selectedDeathDay2, user, loading, isFirstLoad]);
-
-  // ------------------ XP leveling ---------------------
-  useEffect(() => {
-    if (xp !== null && xp >= xpRequired) {
+    if (xp >= xpRequired) {
       setLevel((prev) => prev + 1);
       setXp(0);
-      setForgiveLeft((prev) => Math.max(1, (prev ?? 1) - 1));
+      setForgiveLeft((prev) => Math.max(1, prev - 1));
     }
   }, [xp]);
 
-  // ------------------ Day change ---------------------
+  const isDeathDayToday = () => {
+    const todayDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
+  };
+
+  // --- DATE & WEEK RESET ---
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
       const currentDate = now.toISOString().split("T")[0];
       const currentWeek = getWeekNumber(now);
+
       if (currentDate !== today) {
         setToday(currentDate);
         setXpFrozen(false);
@@ -166,12 +150,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [today, weekNumber]);
 
-  const isDeathDayToday = () => {
-    const todayDayName = new Date().toLocaleDateString("en-US", { weekday: "long" });
-    return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
-  };
-
-  // ------------------ Task functions ---------------------
   const addTask = (task) => {
     setTasks((prev) => {
       const existing = prev[task.date] || [];
@@ -200,8 +178,14 @@ export default function App() {
   };
 
   const forgiveTask = (date, index) => {
-    if (isDeathDayToday()) return alert("Strict mode active today, forgives not allowed!");
-    if (forgiveLeft <= 0) return alert("No forgives left!");
+    if (isDeathDayToday()) {
+      alert("Strict mode active today, forgives are not allowed!");
+      return;
+    }
+    if (forgiveLeft <= 0) {
+      alert("No forgives left!");
+      return;
+    }
     const newDateTasks = [...(tasks[date] || [])];
     if (newDateTasks[index].name.toLowerCase() === "wake up") {
       setXpFrozen(true);
@@ -214,11 +198,13 @@ export default function App() {
 
   useEffect(() => {
     if (isDeathDayToday()) {
-      const todayTasks = (tasks?.[today] || []);
+      const todayTasks = tasks[today] || [];
       const allDone = todayTasks.length === 0 || todayTasks.every((t) => t.done);
       if (!allDone) setMissedOnStrictDay(true);
     }
   }, [tasks, today]);
+
+  const filteredTasks = tasks[today] || [];
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -233,11 +219,9 @@ export default function App() {
     e.target.reset();
   };
 
-  const filteredTasks = tasks?.[today] || [];
-
-  // ------------------ UI ---------------------
-  if (loading || xp === null || level === null || tasks === null) {
-    return <div className="text-white p-4">Loading...</div>;
+  // --- UI ---
+  if (loading) {
+    return <div className="h-screen flex justify-center items-center text-white text-2xl">Loading...</div>;
   }
 
   if (!user) {
@@ -254,28 +238,32 @@ export default function App() {
     );
   }
 
+  const navbar = (
+    <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
+      <div className="font-bold text-lg">No Mercy</div>
+      <div className="space-x-2 text-sm">
+        <button onClick={() => setPage("dashboard")} className="px-3 py-1 bg-red-600 rounded">Dashboard</button>
+        <button onClick={() => setPage("reports")} className="px-3 py-1 bg-blue-600 rounded">Reports</button>
+        <button onClick={() => setPage("deathmode")} className="px-3 py-1 bg-purple-600 rounded">Death Mode</button>
+        <button onClick={() => setPage("leaderboard")} className="px-3 py-1 bg-yellow-600 rounded">Leaderboard</button>
+        <button onClick={() => setPage("achievements")} className="px-3 py-1 bg-green-600 rounded">Achievements</button>
+        <button onClick={handleLogout} className="px-3 py-1 bg-gray-700 rounded">Logout</button>
+      </div>
+    </div>
+  );
+
+  const strictModeBanner = isDeathDayToday() && (
+    <div className="w-full bg-red-700 text-white text-center py-2 font-bold text-lg mt-12">
+      ⚠ STRICT MODE ACTIVE TODAY - NO FORGIVES & ALL TASKS MANDATORY ⚠
+      {missedOnStrictDay && " (XP Locked - You missed a task!)"}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-cover bg-center"
       style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
-      <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
-        <div className="font-bold text-lg">No Mercy</div>
-        <div className="space-x-2 text-sm">
-          <button onClick={() => setPage("dashboard")} className="px-3 py-1 bg-red-600 rounded">Dashboard</button>
-          <button onClick={() => setPage("reports")} className="px-3 py-1 bg-blue-600 rounded">Reports</button>
-          <button onClick={() => setPage("deathmode")} className="px-3 py-1 bg-purple-600 rounded">Death Mode</button>
-          <button onClick={() => setPage("leaderboard")} className="px-3 py-1 bg-yellow-600 rounded">Leaderboard</button>
-          <button onClick={() => setPage("achievements")} className="px-3 py-1 bg-green-600 rounded">Achievements</button>
-          <button onClick={handleLogout} className="px-3 py-1 bg-gray-700 rounded">Logout</button>
-        </div>
-      </div>
-
-      {isDeathDayToday() && (
-        <div className="w-full bg-red-700 text-white text-center py-2 font-bold text-lg mt-12">
-          ⚠ STRICT MODE ACTIVE TODAY - NO FORGIVES & ALL TASKS MANDATORY ⚠
-          {missedOnStrictDay && " (XP Locked - You missed a task!)"}
-        </div>
-      )}
-
+      {navbar}
+      {strictModeBanner}
       {page === "dashboard" && (
         <div className="pt-20 p-4 text-white">
           <h1 className="text-2xl mb-2">Welcome, {user?.displayName}</h1>
@@ -305,7 +293,6 @@ export default function App() {
           ) : <p>No tasks for today</p>}
         </div>
       )}
-
       {page === "reports" && (
         <div className="pt-20 p-4 text-white">
           <h2 className="text-2xl mb-2">Reports</h2>
@@ -313,7 +300,6 @@ export default function App() {
           <p>Total tasks completed: {Object.values(tasks).flat().filter((t) => t.done).length}</p>
         </div>
       )}
-
       {page === "deathmode" && (
         <div className="pt-20 p-4 text-white">
           <h2 className="text-2xl mb-4">Death Mode</h2>
@@ -350,9 +336,8 @@ export default function App() {
           )}
         </div>
       )}
-
       {page === "leaderboard" && <Leaderboard />}
       {page === "achievements" && <Achievements />}
     </div>
   );
-                       }
+  }
