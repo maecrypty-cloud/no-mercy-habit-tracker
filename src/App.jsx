@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { auth, db, googleProvider } from "./firebase";
-import { signInWithRedirect, signOut, onAuthStateChanged, getRedirectResult } from "firebase/auth";
+import { auth, db, googleProvider } from "./firebaseConfig";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -35,22 +36,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Redirect se login user fetch karna
-  useEffect(() => {
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result?.user) {
-          setUser(result.user);
-        }
-      })
-      .catch((error) => console.error("Redirect login error:", error));
-  }, []);
-
   const handleGoogleLogin = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error("Google login error:", error);
+      alert("Login failed. Check console for details.");
     }
   };
 
@@ -68,14 +59,14 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const userRef = db.collection("users").doc(user.uid);
-      userRef.get().then((doc) => {
-        if (doc.exists) {
-          const data = doc.data();
+      const userRef = doc(db, "users", user.uid);
+      getDoc(userRef).then((docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          userRef.set({ name: user.displayName, email: user.email, xp: 0, level: 1 });
+          setDoc(userRef, { name: user.displayName, email: user.email, xp: 0, level: 1 });
         }
       });
     }
@@ -83,7 +74,8 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
+      const userRef = doc(db, "users", user.uid);
+      updateDoc(userRef, { xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
@@ -231,6 +223,7 @@ export default function App() {
       style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
       {navbar}
       {strictModeBanner}
+      {/* Dashboard */}
       {page === "dashboard" && (
         <div className="pt-20 p-4 text-white">
           <h1 className="text-2xl mb-2">Welcome, {user?.displayName}</h1>
@@ -260,6 +253,7 @@ export default function App() {
           ) : <p>No tasks for today</p>}
         </div>
       )}
+
       {page === "reports" && (
         <div className="pt-20 p-4 text-white">
           <h2 className="text-2xl mb-2">Reports</h2>
@@ -267,6 +261,7 @@ export default function App() {
           <p>Total tasks completed: {Object.values(tasks).flat().filter((t) => t.done).length}</p>
         </div>
       )}
+
       {page === "deathmode" && (
         <div className="pt-20 p-4 text-white">
           <h2 className="text-2xl mb-4">Death Mode</h2>
@@ -301,8 +296,9 @@ export default function App() {
           )}
         </div>
       )}
+
       {page === "leaderboard" && <Leaderboard />}
       {page === "achievements" && <Achievements />}
     </div>
   );
-                                                  }
+    }
