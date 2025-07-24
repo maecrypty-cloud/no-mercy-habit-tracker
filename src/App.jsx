@@ -2,11 +2,6 @@ import React, { useState, useEffect } from "react";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
-// Firebase CDN global objects (make sure you included firebase-app, firebase-auth, firebase-firestore in index.html)
-const auth = firebase.auth();
-const provider = new firebase.auth.GoogleAuthProvider();
-const db = firebase.firestore();
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [page, setPage] = useState("dashboard");
@@ -33,11 +28,11 @@ export default function App() {
 
   const handleGoogleLogin = async () => {
     try {
-      const result = await auth.signInWithPopup(provider);
+      const result = await window.auth.signInWithPopup(window.provider);
       const loggedUser = result.user;
       setUser(loggedUser);
 
-      const userRef = db.collection("users").doc(loggedUser.uid);
+      const userRef = window.db.collection("users").doc(loggedUser.uid);
       const userDoc = await userRef.get();
       if (!userDoc.exists) {
         await userRef.set({
@@ -57,7 +52,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await auth.signOut();
+    await window.auth.signOut();
     setUser(null);
     setTasks({});
     setXp(0);
@@ -71,8 +66,7 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const userRef = db.collection("users").doc(user.uid);
-      userRef.update({ xp, level }).catch(console.error);
+      window.db.collection("users").doc(user.uid).update({ xp, level }).catch(console.error);
     }
   }, [xp, level, user]);
 
@@ -180,24 +174,6 @@ export default function App() {
     e.target.reset();
   };
 
-  const handleDeathDay1 = (e) => {
-    if (deathDayLocked1) {
-      alert("First Death Day already chosen. Change next week!");
-      return;
-    }
-    setSelectedDeathDay(e.target.value);
-    setDeathDayLocked1(true);
-  };
-
-  const handleDeathDay2 = (e) => {
-    if (deathDayLocked2) {
-      alert("Second Death Day already chosen. Change next week!");
-      return;
-    }
-    setSelectedDeathDay2(e.target.value);
-    setDeathDayLocked2(true);
-  };
-
   const navbar = (
     <div className="fixed top-0 left-0 w-full bg-black/70 backdrop-blur-md text-white flex justify-between px-4 py-2 z-50">
       <div className="font-bold text-lg">No Mercy</div>
@@ -219,82 +195,6 @@ export default function App() {
     </div>
   );
 
-  const deathMode = (
-    <div className="pt-20 p-4 text-white">
-      <h2 className="text-2xl mb-4">Death Mode</h2>
-      <p className="mb-2">Choose one day each week for strict mode:</p>
-      <select
-        className="text-black p-2 rounded mb-4"
-        value={selectedDeathDay || ""}
-        onChange={handleDeathDay1}
-        disabled={deathDayLocked1}
-      >
-        <option value="">Select Day</option>
-        {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day) => (
-          <option key={day} value={day}>{day}</option>
-        ))}
-      </select>
-
-      {level >= 7 && (
-        <>
-          <p className="mb-2">Choose second strict day (Unlocked at level 7):</p>
-          <select
-            className="text-black p-2 rounded"
-            value={selectedDeathDay2 || ""}
-            onChange={handleDeathDay2}
-            disabled={deathDayLocked2}
-          >
-            <option value="">Select Day</option>
-            {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day) => (
-              <option key={day} value={day}>{day}</option>
-            ))}
-          </select>
-        </>
-      )}
-      {(selectedDeathDay || selectedDeathDay2) && (
-        <p className="mt-2">Death Mode active on: {selectedDeathDay}{selectedDeathDay2 ? ` & ${selectedDeathDay2}` : ""}</p>
-      )}
-    </div>
-  );
-
-  const dashboard = (
-    <div className="pt-20 p-4 text-white">
-      <h1 className="text-2xl mb-2">Welcome, {user?.displayName}</h1>
-      <p>Level: {level} | XP: {xp}/{xpRequired} {(xpFrozen || missedOnStrictDay) && "(Frozen)"} | Forgives Left: {forgiveLeft}</p>
-      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-2">
-        <input type="text" name="name" placeholder="Task name" className="p-2 rounded text-black" required />
-        <input type="date" name="date" className="p-2 rounded text-black" required />
-        <input type="time" name="time" className="p-2 rounded text-black" required />
-        <input type="number" name="duration" min="5" defaultValue={30} className="p-2 rounded text-black" />
-        <button type="submit" className="bg-green-600 px-4 py-2 rounded">Add</button>
-      </form>
-      <h2 className="text-xl mt-4 mb-2">Today's Tasks</h2>
-      {filteredTasks.length > 0 ? (
-        <ul className="space-y-2">
-          {filteredTasks.map((task, idx) => (
-            <li key={idx} className="bg-white/20 rounded p-2 flex justify-between">
-              <div>{task.name} - {task.time} ({task.duration} min) {task.name.toLowerCase() === "wake up" && "🌞"}</div>
-              {!task.done ? (
-                <div className="space-x-2">
-                  <button onClick={() => completeTask(today, idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
-                  <button onClick={() => forgiveTask(today, idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
-                </div>
-              ) : <span className="text-green-400">✔</span>}
-            </li>
-          ))}
-        </ul>
-      ) : <p>No tasks for today</p>}
-    </div>
-  );
-
-  const reports = (
-    <div className="pt-20 p-4 text-white">
-      <h2 className="text-2xl mb-2">Reports</h2>
-      <p>Daily tasks done: {(tasks[today] || []).filter((t) => t.done).length}</p>
-      <p>Total tasks completed: {Object.values(tasks).flat().filter((t) => t.done).length}</p>
-    </div>
-  );
-
   if (!user) {
     return (
       <div className="h-screen w-full flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
@@ -310,11 +210,78 @@ export default function App() {
     <div className="min-h-screen bg-cover bg-center" style={{ backgroundImage: `url('https://images.alphacoders.com/128/1280491.jpg')` }}>
       {navbar}
       {strictModeBanner}
-      {page === "dashboard" && dashboard}
-      {page === "reports" && reports}
-      {page === "deathmode" && deathMode}
+      {page === "dashboard" && (
+        <div className="pt-20 p-4 text-white">
+          <h1 className="text-2xl mb-2">Welcome, {user?.displayName}</h1>
+          <p>Level: {level} | XP: {xp}/{xpRequired} {(xpFrozen || missedOnStrictDay) && "(Frozen)"} | Forgives Left: {forgiveLeft}</p>
+          <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap gap-2">
+            <input type="text" name="name" placeholder="Task name" className="p-2 rounded text-black" required />
+            <input type="date" name="date" className="p-2 rounded text-black" required />
+            <input type="time" name="time" className="p-2 rounded text-black" required />
+            <input type="number" name="duration" min="5" defaultValue={30} className="p-2 rounded text-black" />
+            <button type="submit" className="bg-green-600 px-4 py-2 rounded">Add</button>
+          </form>
+          <h2 className="text-xl mt-4 mb-2">Today's Tasks</h2>
+          {filteredTasks.length > 0 ? (
+            <ul className="space-y-2">
+              {filteredTasks.map((task, idx) => (
+                <li key={idx} className="bg-white/20 rounded p-2 flex justify-between">
+                  <div>{task.name} - {task.time} ({task.duration} min) {task.name.toLowerCase() === "wake up" && "🌞"}</div>
+                  {!task.done ? (
+                    <div className="space-x-2">
+                      <button onClick={() => completeTask(today, idx)} className="bg-green-500 px-2 py-1 rounded">Done</button>
+                      <button onClick={() => forgiveTask(today, idx)} className="bg-yellow-500 px-2 py-1 rounded">Forgive</button>
+                    </div>
+                  ) : <span className="text-green-400">✔</span>}
+                </li>
+              ))}
+            </ul>
+          ) : <p>No tasks for today</p>}
+        </div>
+      )}
+      {page === "reports" && (
+        <div className="pt-20 p-4 text-white">
+          <h2 className="text-2xl mb-2">Reports</h2>
+          <p>Daily tasks done: {(tasks[today] || []).filter((t) => t.done).length}</p>
+          <p>Total tasks completed: {Object.values(tasks).flat().filter((t) => t.done).length}</p>
+        </div>
+      )}
+      {page === "deathmode" && (
+        <div className="pt-20 p-4 text-white">
+          <h2 className="text-2xl mb-4">Death Mode</h2>
+          <p className="mb-2">Choose one day each week for strict mode:</p>
+          <select
+            className="text-black p-2 rounded mb-4"
+            value={selectedDeathDay || ""}
+            onChange={(e) => { if (!deathDayLocked1) { setSelectedDeathDay(e.target.value); setDeathDayLocked1(true); } }}
+          >
+            <option value="">Select Day</option>
+            {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day) => (
+              <option key={day} value={day}>{day}</option>
+            ))}
+          </select>
+          {level >= 7 && (
+            <>
+              <p className="mb-2">Choose second strict day (Unlocked at level 7):</p>
+              <select
+                className="text-black p-2 rounded"
+                value={selectedDeathDay2 || ""}
+                onChange={(e) => { if (!deathDayLocked2) { setSelectedDeathDay2(e.target.value); setDeathDayLocked2(true); } }}
+              >
+                <option value="">Select Day</option>
+                {["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"].map((day) => (
+                  <option key={day} value={day}>{day}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {(selectedDeathDay || selectedDeathDay2) && (
+            <p className="mt-2">Death Mode active on: {selectedDeathDay}{selectedDeathDay2 ? ` & ${selectedDeathDay2}` : ""}</p>
+          )}
+        </div>
+      )}
       {page === "leaderboard" && <Leaderboard />}
       {page === "achievements" && <Achievements />}
     </div>
   );
-    }
+        }
