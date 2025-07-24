@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { auth, db, googleProvider } from "./firebaseConfig"; // Fixed import
-import { 
-  signInWithPopup, 
-  signOut, 
-  onAuthStateChanged 
-} from "firebase/auth";
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc 
-} from "firebase/firestore";
+import { auth, db, googleProvider } from "./firebaseConfig";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -37,26 +28,26 @@ export default function App() {
   const [weekNumber, setWeekNumber] = useState(getWeekNumber(new Date()));
   const xpRequired = 500 * level;
 
+  // Auth state listener (Reset only after logout)
   useEffect(() => {
-  const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-    if (currentUser) {
-      setUser(currentUser);
-    } else {
-      setUser(null);
-      // Reset only after logout
-      setTasks({});
-      setXp(0);
-      setLevel(1);
-      setXpFrozen(false);
-      setForgiveLeft(6);
-      setMissedOnStrictDay(false);
-      setDeathDayLocked1(false);
-      setDeathDayLocked2(false);
-      setPage("dashboard");
-    }
-  });
-  return () => unsubscribe();
-}, []);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+      } else {
+        setUser(null);
+        setTasks({});
+        setXp(0);
+        setLevel(1);
+        setXpFrozen(false);
+        setForgiveLeft(6);
+        setMissedOnStrictDay(false);
+        setDeathDayLocked1(false);
+        setDeathDayLocked2(false);
+        setPage("dashboard");
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const handleGoogleLogin = async () => {
     try {
@@ -79,6 +70,7 @@ export default function App() {
     setPage("dashboard");
   };
 
+  // Load XP & Level from Firestore after login
   useEffect(() => {
     if (user) {
       const userRef = doc(db, "users", user.uid);
@@ -88,12 +80,18 @@ export default function App() {
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          setDoc(userRef, { name: user.displayName, email: user.email, xp: 0, level: 1 });
+          setDoc(userRef, {
+            name: user.displayName,
+            email: user.email,
+            xp: 0,
+            level: 1,
+          });
         }
       });
     }
   }, [user]);
 
+  // Save XP & Level to Firestore whenever they change
   useEffect(() => {
     if (user) {
       const userRef = doc(db, "users", user.uid);
@@ -114,6 +112,7 @@ export default function App() {
     return todayDayName === selectedDeathDay || todayDayName === selectedDeathDay2;
   };
 
+  // Reset day/week-specific states
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date();
@@ -320,4 +319,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-            }
+        }
