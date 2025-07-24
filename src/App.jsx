@@ -1,3 +1,68 @@
+import React, { useEffect, useState } from "react";
+import { auth, db, googleProvider } from "./firebaseConfig";
+import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [xp, setXp] = useState(0);
+
+  // DEBUG: Auth listener
+  useEffect(() => {
+    console.log("Setting up auth listener...");
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log("Auth state changed:", currentUser);
+      if (currentUser) {
+        setUser(currentUser);
+        const userRef = doc(db, "users", currentUser.uid);
+        const docSnap = await getDoc(userRef);
+        console.log("Doc snap exists:", docSnap.exists());
+        if (docSnap.exists()) {
+          setXp(docSnap.data().xp || 0);
+        } else {
+          await setDoc(userRef, { xp: 0 });
+          setXp(0);
+        }
+      } else {
+        setUser(null);
+        setXp(0);
+      }
+      setLoading(false);
+    });
+    return unsubscribe;
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      console.error("Login error", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut(auth);
+  };
+
+  if (loading) return <div className="text-white">Loading...</div>;
+
+  if (!user) {
+    return (
+      <div className="text-white h-screen flex items-center justify-center">
+        <button onClick={handleLogin}>Login with Google</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-white h-screen flex flex-col items-center justify-center">
+      <h1>Hello {user.displayName}</h1>
+      <p>XP: {xp}</p>
+      <button onClick={handleLogout}>Logout</button>
+    </div>
+  );
+}
 import React, { useState, useEffect } from "react";
 import { auth, db, googleProvider } from "./firebaseConfig";
 import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
