@@ -1,16 +1,16 @@
-export default function App() {
-  try {
-    return <MainApp />; // actual app logic alag component me
-  } catch (e) {
-    console.error("Render error: ", e);
-    return <div className="text-white bg-black h-screen flex justify-center items-center">Error Occurred!</div>;
-  }
-}
-// App.jsx
 import React, { useState, useEffect } from "react";
-import { auth, db, googleProvider } from "./firebase.config";
-import { signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db, googleProvider } from "./firebase";
+import { 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged 
+} from "firebase/auth";
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  updateDoc 
+} from "firebase/firestore";
 import Leaderboard from "./Leaderboard";
 import Achievements from "./Achievements";
 
@@ -41,6 +41,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser || null);
+      if (!currentUser) setPage("dashboard");
     });
     return () => unsubscribe();
   }, []);
@@ -75,12 +76,7 @@ export default function App() {
           setXp(data.xp || 0);
           setLevel(data.level || 1);
         } else {
-          setDoc(userRef, {
-            name: user.displayName,
-            email: user.email,
-            xp: 0,
-            level: 1,
-          });
+          setDoc(userRef, { name: user.displayName, email: user.email, xp: 0, level: 1 });
         }
       });
     }
@@ -163,7 +159,6 @@ export default function App() {
       alert("No forgives left!");
       return;
     }
-
     const newDateTasks = [...(tasks[date] || [])];
     if (newDateTasks[index].name.toLowerCase() === "wake up") {
       setXpFrozen(true);
@@ -303,7 +298,9 @@ export default function App() {
             </>
           )}
           {(selectedDeathDay || selectedDeathDay2) && (
-            <p className="mt-2">Death Mode active on: {selectedDeathDay}{selectedDeathDay2 ? ` & ${selectedDeathDay2}` : ""}</p>
+            <p className="mt-2">
+              Death Mode active on: {selectedDeathDay}{selectedDeathDay2 ? ` & ${selectedDeathDay2}` : ""}
+            </p>
           )}
         </div>
       )}
@@ -311,4 +308,4 @@ export default function App() {
       {page === "achievements" && <Achievements />}
     </div>
   );
-    }
+        }
